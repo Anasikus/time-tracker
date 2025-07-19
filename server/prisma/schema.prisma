@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Player {
+  id          Int       @id @default(autoincrement())
+  nickname    String
+  statusId    Int
+  positionId  Int
+  serverId    Int?
+  createdAt   DateTime  @default(now())
+
+  status      Status    @relation(fields: [statusId], references: [id])
+  position    Position  @relation(fields: [positionId], references: [id])
+  server      Server?   @relation(fields: [serverId], references: [id])
+  timeLogs    TimeLog[]
+
+  @@map("players")
+}
+
+model TimeLog {
+  id        Int      @id @default(autoincrement())
+  playerId  Int
+  date      DateTime
+  duration  Int       // Кол-во минут
+
+  player    Player    @relation(fields: [playerId], references: [id])
+
+  @@map("time_logs")
+}
+
+model Status {
+  id       Int      @id @default(autoincrement())
+  label    String   @unique
+  players  Player[]
+
+  @@map("statuses")
+}
+
+model Position {
+  id       Int      @id @default(autoincrement())
+  title    String   @unique
+  players  Player[]
+
+  @@map("positions")
+}
+
+model Server {
+  id       Int      @id @default(autoincrement())
+  name     String
+  players  Player[]
+
+  @@map("servers")
+}
