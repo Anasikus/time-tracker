@@ -113,7 +113,8 @@ const PlayerListWithPlaytime = () => {
       {/* Детали времени */}
       {showPlaytimeTable && (
         <Modal onClose={() => setShowPlaytimeTable(false)}>
-          <PlaytimeTable />
+          <PlaytimeTable onClose={() => setShowPlaytimeTable(false)} />
+
         </Modal>
       )}
     </div>

@@ -1,80 +1,198 @@
-import { useEffect, useState } from 'react';
-import { getPlaytimeByWeek } from '../services/api';
-import type { PlaytimeEntry } from '../types';
+import { useState, useEffect } from 'react';
 import dayjs from 'dayjs';
 
-const days = Array.from({ length: 7 }).map((_, i) => dayjs().startOf('week').add(i, 'day'));
+type TimeEntry = {
+  id: number;
+  date: string;
+  hours: string;
+  minutes: string;
+};
 
-const PlaytimeTable = () => {
-  const [data, setData] = useState<PlaytimeEntry[]>([]);
+type Mode = 'day' | 'range';
+
+let entryId = 0;
+
+type Props = {
+  onClose: () => void;
+  onSave?: (entries: TimeEntry[]) => void; // Опционально
+};
+
+const PlaytimeModal = ({ onClose, onSave }: Props) => {
+  const [mode, setMode] = useState<Mode>('day');
+  const [rangeStart, setRangeStart] = useState('');
+  const [rangeEnd, setRangeEnd] = useState('');
+  const [entries, setEntries] = useState<TimeEntry[]>([]);
 
   useEffect(() => {
-    const load = async () => {
-      const start = days[0].format('YYYY-MM-DD');
-      const end = days[6].format('YYYY-MM-DD');
-      const res = await getPlaytimeByWeek(start, end);
-      setData(res.data);
-    };
-    load();
-  }, []);
+    if (mode === 'range' && rangeStart && rangeEnd) {
+      const start = dayjs(rangeStart);
+      const end = dayjs(rangeEnd);
+      if (end.isBefore(start)) return;
 
-  const grouped = data.reduce((acc, entry) => {
-    const id = entry.player.id;
-    const dateStr = dayjs(entry.date).format('YYYY-MM-DD');
-    if (!acc[id]) acc[id] = { ...entry.player, timeLog: {} };
-    acc[id].timeLog[dateStr] = entry.duration;
-    return acc;
-  }, {} as Record<number, any>);
+      const diff = end.diff(start, 'day') + 1;
+      const newEntries: TimeEntry[] = Array.from({ length: diff }).map((_, i) => ({
+        id: entryId++,
+        date: start.add(i, 'day').format('YYYY-MM-DD'),
+        hours: '',
+        minutes: '',
+      }));
+      setEntries(newEntries);
+    } else if (mode === 'day') {
+      setEntries([{ id: entryId++, date: '', hours: '', minutes: '' }]);
+    }
+  }, [mode, rangeStart, rangeEnd]);
+
+  const updateEntry = (id: number, key: keyof TimeEntry, value: string) => {
+    setEntries(prev =>
+      prev.map(entry =>
+        entry.id === id ? { ...entry, [key]: value } : entry
+      )
+    );
+  };
+
+  const addEntry = () => {
+    setEntries(prev => [
+      ...prev,
+      { id: entryId++, date: '', hours: '', minutes: '' },
+    ]);
+  };
+
+  const removeEntry = (id: number) => {
+    setEntries(prev => prev.filter(entry => entry.id !== id));
+  };
+
+  const allValid = entries.every(e => e.date && e.hours && e.minutes);
+
+  const handleSave = () => {
+    if (allValid && onSave) {
+      onSave(entries);
+    }
+    onClose();
+  };
 
   return (
-    <table className="w-full border">
-      <thead>
-        <tr>
-          <th>Код</th>
-          <th>Ник / Должность / Статус</th>
-          {days.map(d => (
-            <th key={d.format('YYYY-MM-DD')}>{d.format('dd')}</th>
-          ))}
-          <th>Итого</th>
-        </tr>
-      </thead>
-      <tbody>
-        {Object.values(grouped).map((player: any) => {
-        const total = Object.values(player.timeLog as Record<string, number>).reduce(
-            (sum, min) => sum + min,
-            0
-        );
+    <div className="p-4 bg-white rounded-xl shadow-lg max-w-2xl mx-auto">
+      <h2 className="text-xl font-bold mb-4">Добавление времени</h2>
 
-          return (
-            <tr key={player.id}>
-              <td>{player.id}</td>
-              <td className="cursor-pointer hover:underline" title="Кликните для деталей">
-                <div>{player.nickname}</div>
-                <div className="text-sm text-gray-500">{player.position?.title ?? '—'}</div>
-                <div className="text-sm text-gray-500">{player.status?.label ?? '—'}</div>
-              </td>
+      <div className="mb-4">
+        <label className="mr-4">
+          <input
+            type="radio"
+            value="day"
+            checked={mode === 'day'}
+            onChange={() => setMode('day')}
+          />{' '}
+          День
+        </label>
+        <label>
+          <input
+            type="radio"
+            value="range"
+            checked={mode === 'range'}
+            onChange={() => setMode('range')}
+          />{' '}
+          Период
+        </label>
+      </div>
 
-              {days.map(d => {
-                const dateStr = d.format('YYYY-MM-DD');
-                const min = player.timeLog[dateStr] || 0;
-                const h = Math.floor(min / 60);
-                const m = min % 60;
-                return (
-                  <td key={dateStr}>
-                    <div
-                      className="w-5 h-5 rounded bg-purple-400 hover:bg-purple-600 tooltip"
-                      title={`${h} ч ${m} мин\n${d.format('DD.MM')}`}
-                    ></div>
-                  </td>
-                );
-              })}
-              <td>{Math.floor(total / 60)} ч {total % 60} мин</td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+      {mode === 'range' && (
+        <div className="flex gap-4 mb-4">
+          <div>
+            <label className="block text-sm">С</label>
+            <input
+              type="date"
+              value={rangeStart}
+              onChange={e => setRangeStart(e.target.value)}
+              className="border p-1 rounded"
+            />
+          </div>
+          <div>
+            <label className="block text-sm">По</label>
+            <input
+              type="date"
+              value={rangeEnd}
+              onChange={e => setRangeEnd(e.target.value)}
+              className="border p-1 rounded"
+            />
+          </div>
+        </div>
+      )}
+
+      {entries.map(entry => (
+        <div
+          key={entry.id}
+          className="flex items-center gap-4 mb-2 relative border p-2 rounded"
+        >
+          <button
+            onClick={() => removeEntry(entry.id)}
+            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center"
+            title="Удалить"
+          >
+            ×
+          </button>
+          <div className="flex-1">
+            <label className="block text-xs text-gray-500">Дата</label>
+            <input
+              type="date"
+              value={entry.date}
+              onChange={e => updateEntry(entry.id, 'date', e.target.value)}
+              className="border p-1 rounded w-full"
+            />
+          </div>
+          <div className="w-24">
+            <label className="block text-xs text-gray-500">Часы</label>
+            <input
+              type="number"
+              min="0"
+              value={entry.hours}
+              onChange={e => updateEntry(entry.id, 'hours', e.target.value)}
+              className="border p-1 rounded w-full"
+              placeholder="0–24"
+            />
+          </div>
+          <div className="w-24">
+            <label className="block text-xs text-gray-500">Минуты</label>
+            <input
+              type="number"
+              min="0"
+              max="59"
+              value={entry.minutes}
+              onChange={e => updateEntry(entry.id, 'minutes', e.target.value)}
+              className="border p-1 rounded w-full"
+              placeholder="0–59"
+            />
+          </div>
+        </div>
+      ))}
+
+      {allValid && (
+        <button
+          onClick={addEntry}
+          className="mt-4 px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700"
+        >
+          Добавить запись
+        </button>
+      )}
+
+      <div className="flex justify-between pt-4">
+        <button
+          onClick={onClose}
+          className="px-4 py-1 border border-gray-400 rounded hover:bg-gray-100"
+        >
+          Отмена
+        </button>
+        <button
+          onClick={handleSave}
+          disabled={!allValid}
+          className={`px-4 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 ${
+            !allValid ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
+        >
+          Сохранить
+        </button>
+      </div>
+    </div>
   );
 };
 
-export default PlaytimeTable;
+export default PlaytimeModal;
