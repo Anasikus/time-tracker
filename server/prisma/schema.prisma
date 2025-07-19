@@ -26,12 +26,11 @@ model Player {
 model TimeLog {
   id        Int      @id @default(autoincrement())
   playerId  Int
-  date      DateTime
-  duration  Int       // Кол-во минут
+  date      DateTime // дата за которую лог
+  duration  Int      // в минутах
+  createdAt DateTime @default(now())
 
-  player    Player    @relation(fields: [playerId], references: [id])
-
-  @@map("time_logs")
+  player    Player   @relation(fields: [playerId], references: [id])
 }
 
 model Status {

@@ -5,6 +5,12 @@ export interface Player {
   positionId: number;
   serverId?: number;
   createdAt: string;
+  status?: {
+    label: string;
+  };
+  position?: {
+    title: string;
+  };
 }
 
 export interface Status {
@@ -20,4 +26,15 @@ export interface Position {
 export interface Server {
   id: number;
   name: string;
+}
+
+export interface PlaytimeEntry {
+  id: number;
+  playerId: number;
+  date: string;
+  duration: number;
+  player: Player & {
+    status: Status;
+    position: Position;
+  };
 }

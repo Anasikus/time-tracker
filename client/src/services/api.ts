@@ -33,3 +33,11 @@ export const createPlayer = async (data: {
 }) => {
   await API.post('/players', data);
 };
+
+export const getPlaytimeByWeek = async (start: string, end: string) => {
+  return await API.get(`/playtime?start=${start}&end=${end}`);
+};
+
+export const addPlaytime = async (entry: { playerId: number; date: string; duration: number }) => {
+  return await API.post('/playtime', entry);
+};
