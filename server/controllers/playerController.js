@@ -1,6 +1,7 @@
-import prisma from '../db/client.js';
+import { PrismaClient } from '@prisma/client';
 
-// Получить всех игроков
+const prisma = new PrismaClient();
+
 export const getAllPlayers = async (req, res) => {
   try {
     const players = await prisma.player.findMany({
@@ -8,16 +9,85 @@ export const getAllPlayers = async (req, res) => {
         status: true,
         position: true,
         server: true,
+        timeLogs: true,
       },
     });
     res.json(players);
   } catch (error) {
-    console.error('Error getting players:', error);
-    res.status(500).json({ error: 'Failed to get players' });
+    console.error("Error fetching players:", error);
+    res.status(500).json({ error: "Failed to fetch players." });
   }
 };
 
-// Получить игрока по ID
+export const createPlayer = async (req, res) => {
+  try {
+    const { nickname, statusId, positionId, serverId } = req.body;
+
+    if (!nickname || !statusId || !positionId) {
+      return res.status(400).json({ error: "nickname, statusId, and positionId are required." });
+    }
+
+    const newPlayer = await prisma.player.create({
+      data: {
+        nickname,
+        statusId,
+        positionId,
+        serverId: serverId || null,
+      },
+    });
+
+    res.status(201).json(newPlayer);
+  } catch (error) {
+    console.error("Error creating player:", error);
+    res.status(500).json({ error: "Failed to create player." });
+  }
+};
+
+export const updatePlayer = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nickname, statusId, positionId, serverId } = req.body;
+
+    if (!nickname || !statusId || !positionId) {
+      return res.status(400).json({ error: "nickname, statusId, and positionId are required." });
+    }
+
+    const updatedPlayer = await prisma.player.update({
+      where: { id: Number(id) },
+      data: {
+        nickname,
+        statusId,
+        positionId,
+        serverId: serverId || null,
+      },
+    });
+
+    res.json(updatedPlayer);
+  } catch (error) {
+    console.error("Error updating player:", error);
+    res.status(500).json({ error: "Failed to update player." });
+  }
+};
+
+export const deletePlayer = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    await prisma.timeLog.deleteMany({
+      where: { playerId: Number(id) },
+    });
+
+    await prisma.player.delete({
+      where: { id: Number(id) },
+    });
+
+    res.status(200).json({ message: "Player deleted successfully." });
+  } catch (error) {
+    console.error("Error deleting player:", error);
+    res.status(500).json({ error: "Failed to delete player." });
+  }
+};
+
 export const getPlayerById = async (req, res) => {
   const id = Number(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
@@ -39,70 +109,6 @@ export const getPlayerById = async (req, res) => {
   }
 };
 
-// Создать игрока
-export const createPlayer = async (req, res) => {
-  const { nickname, statusId, positionId, serverId } = req.body;
-  if (!nickname || !statusId || !positionId || !serverId) {
-    return res.status(400).json({ error: 'All fields are required' });
-  }
-
-  try {
-    const newPlayer = await prisma.player.create({
-      data: {
-        nickname,
-        statusId,
-        positionId,
-        serverId,
-      },
-    });
-    res.status(201).json(newPlayer);
-  } catch (error) {
-    console.error('Error creating player:', error);
-    res.status(500).json({ error: 'Failed to create player' });
-  }
-};
-
-// Обновить игрока
-export const updatePlayer = async (req, res) => {
-  const id = Number(req.params.id);
-  const { nickname, statusId, positionId, serverId } = req.body;
-
-  if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
-
-  try {
-    const existing = await prisma.player.findUnique({ where: { id } });
-    if (!existing) return res.status(404).json({ error: 'Player not found' });
-
-    const updated = await prisma.player.update({
-      where: { id },
-      data: {
-        nickname,
-        statusId,
-        positionId,
-        serverId,
-      },
-    });
-    res.json(updated);
-  } catch (error) {
-    console.error('Error updating player:', error);
-    res.status(500).json({ error: 'Failed to update player' });
-  }
-};
-
-// Удалить игрока
-export const deletePlayer = async (req, res) => {
-  const id = Number(req.params.id);
-  if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
-
-  try {
-    await prisma.player.delete({ where: { id } });
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error deleting player:', error);
-    res.status(500).json({ error: 'Failed to delete player' });
-  }
-};
-
 export const getStatuses = async (req, res) => {
   try {
     const statuses = await prisma.status.findMany();
@@ -114,11 +120,21 @@ export const getStatuses = async (req, res) => {
 };
 
 export const getPositions = async (req, res) => {
-  const positions = await prisma.position.findMany();
-  res.json(positions);
+  try {
+    const positions = await prisma.position.findMany();
+    res.json(positions);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get positions' });
+  }
 };
 
 export const getServers = async (req, res) => {
-  const data = await prisma.server.findMany();
-  res.json(data);
+  try {
+    const data = await prisma.server.findMany();
+    res.json(data);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get servers' });
+  }
 };

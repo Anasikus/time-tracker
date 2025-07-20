@@ -97,9 +97,8 @@ const PlaytimeTable = ({ onClose, onSave, playerId }: Props) => {
         console.error('Ошибка запроса:', err);
       }
     }
-
     if (onSave) onSave(entries);
-    onClose();
+    else onClose();
   };
 
   return (

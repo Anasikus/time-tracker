@@ -26,13 +26,15 @@ model Player {
 model TimeLog {
   id        Int      @id @default(autoincrement())
   playerId  Int
-  date      DateTime // дата за которую лог
-  duration  Int      // в минутах
+  date      DateTime
+  duration  Int
   createdAt DateTime @default(now())
 
-  player    Player   @relation(fields: [playerId], references: [id])
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
   @@unique([playerId, date])
 }
+
 
 model Status {
   id       Int      @id @default(autoincrement())

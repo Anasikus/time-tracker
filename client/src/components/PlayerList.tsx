@@ -1,16 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { getPlaytimeByWeek } from '../services/api';
 import type { Player } from '../types';
 import dayjs from 'dayjs';
 import Modal from './Modal';
 import PlayerDetails from './PlayerDetails';
 import PlaytimeTable from './PlaytimeTable';
+import axios from 'axios';
 
 type TimeLogEntry = {
   id: number;
   playerId: number;
   date: string;
-  duration: number; // в минутах
+  duration: number;
   createdAt: string;
 };
 
@@ -20,15 +21,13 @@ type PlayerWithTimeLogs = {
 };
 
 type PlayerWithTimeLog = Player & {
-  timeLog: Record<string, number>; // ключ — дата, значение — минуты
+  timeLog: Record<string, number>;
 };
 
 const PlayerListWithPlaytime = () => {
-  // Период (старт — начало недели по умолчанию)
   const [startDate, setStartDate] = useState(dayjs().startOf('week'));
   const [endDate, setEndDate] = useState(dayjs().startOf('week').add(6, 'day'));
 
-  // Массив дней для таблицы
   const [days, setDays] = useState(() =>
     Array.from({ length: endDate.diff(startDate, 'day') + 1 }).map((_, i) =>
       startDate.add(i, 'day')
@@ -39,28 +38,46 @@ const PlayerListWithPlaytime = () => {
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerWithTimeLog | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [showPlaytimeTable, setShowPlaytimeTable] = useState(false);
+  const [players, setPlayers] = useState<Player[]>([]);
 
-  // Загрузка данных при изменении периода
-  useEffect(() => {
-    const load = async () => {
+  // Обновление времени
+  const fetchData = useCallback(async () => {
+    try {
       const start = startDate.format('YYYY-MM-DD');
       const end = endDate.format('YYYY-MM-DD');
       const res = await getPlaytimeByWeek(start, end);
-      console.log('Полученные данные:', res.data);
       setData(res.data);
 
-      // Обновляем массив дней
       const countDays = endDate.diff(startDate, 'day') + 1;
-      setDays(
-        Array.from({ length: countDays }).map((_, i) =>
-          startDate.add(i, 'day')
-        )
-      );
-    };
-    load();
+      setDays(Array.from({ length: countDays }).map((_, i) => startDate.add(i, 'day')));
+    } catch (error) {
+      console.error('Ошибка при загрузке времени:', error);
+    }
   }, [startDate, endDate]);
 
-  // Формируем сгруппированные данные для быстрого доступа
+  // Загрузка игроков
+  const fetchPlayers = useCallback(async () => {
+    try {
+      const res = await axios.get('/api/players');
+      setPlayers(res.data);
+    } catch (error) {
+      console.error('Ошибка при загрузке игроков:', error);
+    }
+  }, []);
+
+  // Загрузка данных при изменении дат
+  useEffect(() => {
+    fetchData();
+    fetchPlayers();
+  }, [fetchData, fetchPlayers]);
+
+  // Обновление при редактировании
+  const handleUpdated = () => {
+    fetchPlayers();
+    fetchData();
+  };
+
+  // Группировка
   const grouped: Record<number, PlayerWithTimeLog> = {};
   data.forEach(({ player, timeLog }) => {
     if (!grouped[player.id]) {
@@ -72,26 +89,18 @@ const PlayerListWithPlaytime = () => {
     });
   });
 
-  // Функция для определения цвета квадратика
-  // По условию:
-  // - красный: > 1ч (то есть > 60 мин)
-  // - зелёный: < 1ч (0 < min <= 60)
-  // - синий: < 2ч (0 < min <= 120) — здесь логика конфликтует с зелёным,
-  //   я считаю, что надо так: красный > 2ч, синий >1ч до 2ч, зелёный <=1ч
-  // - жёлтый: отпуск (поясни, как определяется отпуск, например если duration = -1 или отдельный флаг?)
-const getSquareColor = (duration: number): string => {
-  if (duration === -1) return 'yellow'; // отпуск
-  if (duration > 120) return 'blue'; // больше 2 часов — красный
-  if (duration > 60) return 'green'; // от 1 до 2 часов — синий
-  if (duration > 0) return 'red'; // меньше или равно 1 часа — зелёный
-  return 'gray'; // нет времени — серый
-};
+  const getSquareColor = (duration: number): string => {
+    if (duration === -1) return 'yellow';
+    if (duration > 120) return 'blue';
+    if (duration > 60) return 'green';
+    if (duration > 0) return 'red';
+    return 'gray';
+  };
 
   return (
     <div>
       <h2 className="text-xl font-bold mb-4">Отчёт по игрокам</h2>
 
-      {/* Выбор периода */}
       <div className="mb-4 flex gap-4 items-center">
         <label>
           С:{' '}
@@ -101,7 +110,6 @@ const getSquareColor = (duration: number): string => {
             onChange={e => {
               const newStart = dayjs(e.target.value);
               if (newStart.isAfter(endDate)) {
-                // не даём start быть позже end
                 alert('Дата начала не может быть позже даты окончания');
                 return;
               }
@@ -147,7 +155,6 @@ const getSquareColor = (duration: number): string => {
               0
             );
 
-            // Расчёт часов и минут только для подсчёта итого (текст останется)
             const hours = isNaN(total) ? 0 : Math.floor(total / 60);
             const minutes = isNaN(total) ? 0 : total % 60;
 
@@ -178,13 +185,8 @@ const getSquareColor = (duration: number): string => {
                         setSelectedPlayer(player);
                         setShowPlaytimeTable(true);
                       }}
-                      className="cursor-pointer select-none"
-                      style={{
-                        textAlign: 'center',
-                        verticalAlign: 'middle',
-                      }}
+                      className="cursor-pointer select-none text-center"
                     >
-                      {/* Квадратик */}
                       <div
                         style={{
                           width: 40,
@@ -205,7 +207,6 @@ const getSquareColor = (duration: number): string => {
         </tbody>
       </table>
 
-      {/* Детали игрока */}
       {showDetails && selectedPlayer && (
         <Modal
           onClose={() => {
@@ -219,14 +220,22 @@ const getSquareColor = (duration: number): string => {
               setShowDetails(false);
               setSelectedPlayer(null);
             }}
+            onUpdated={handleUpdated}
           />
         </Modal>
       )}
 
-      {/* Детали времени */}
       {showPlaytimeTable && (
         <Modal onClose={() => setShowPlaytimeTable(false)}>
-          <PlaytimeTable onClose={() => setShowPlaytimeTable(false)} playerId={selectedPlayer?.id ?? 0} />
+        <PlaytimeTable
+          onClose={() => setShowPlaytimeTable(false)}
+          playerId={selectedPlayer?.id ?? 0}
+          onSave={() => {
+            setShowPlaytimeTable(false);
+            handleUpdated(); // обновим данные
+          }}
+        />
+
         </Modal>
       )}
     </div>
