@@ -1,16 +1,10 @@
 export interface Player {
   id: number;
   nickname: string;
-  statusId: number;
-  positionId: number;
-  serverId?: number;
+  status?: Status;
+  position?: Position;
+  server?: Server;
   createdAt: string;
-  status?: {
-    label: string;
-  };
-  position?: {
-    title: string;
-  };
 }
 
 export interface Status {

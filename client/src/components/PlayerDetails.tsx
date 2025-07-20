@@ -1,20 +1,19 @@
-import type { Player } from '../types/index.ts';
+import type { Player } from '../types';
 
 interface PlayerDetailsProps {
   player: Player;
   onClose: () => void;
-  
 }
 
 const PlayerDetails = ({ player, onClose }: PlayerDetailsProps) => {
-  console.log('Player в модалке:', player);
   return (
     <div>
       <h3 className="text-lg font-semibold mb-2">Информация об игроке</h3>
       <p><strong>Код:</strong> {player.id}</p>
-      <p><strong>Ник:</strong> {player.nickname}</p>
+      <p><strong>Ник:</strong> {player.nickname ?? '—'}</p>
       <p><strong>Статус:</strong> {player.status?.label ?? '—'}</p>
       <p><strong>Должность:</strong> {player.position?.title ?? '—'}</p>
+      <p><strong>Сервер:</strong> {player.server?.name ?? '—'}</p>
       <button
         onClick={onClose}
         className="mt-4 bg-blue-500 text-white px-4 py-1 rounded hover:bg-blue-600"

@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+// PlaytimeTable.tsx
+import { useState, useEffect, useRef } from 'react';
 import dayjs from 'dayjs';
 
 type TimeEntry = {
@@ -10,18 +11,18 @@ type TimeEntry = {
 
 type Mode = 'day' | 'range';
 
-let entryId = 0;
-
 type Props = {
   onClose: () => void;
-  onSave?: (entries: TimeEntry[]) => void; // Опционально
+  playerId: number;
+  onSave?: (entries: TimeEntry[]) => void;
 };
 
-const PlaytimeModal = ({ onClose, onSave }: Props) => {
+const PlaytimeTable = ({ onClose, onSave, playerId }: Props) => {
   const [mode, setMode] = useState<Mode>('day');
   const [rangeStart, setRangeStart] = useState('');
   const [rangeEnd, setRangeEnd] = useState('');
   const [entries, setEntries] = useState<TimeEntry[]>([]);
+  const nextId = useRef(1);
 
   useEffect(() => {
     if (mode === 'range' && rangeStart && rangeEnd) {
@@ -31,14 +32,14 @@ const PlaytimeModal = ({ onClose, onSave }: Props) => {
 
       const diff = end.diff(start, 'day') + 1;
       const newEntries: TimeEntry[] = Array.from({ length: diff }).map((_, i) => ({
-        id: entryId++,
+        id: nextId.current++,
         date: start.add(i, 'day').format('YYYY-MM-DD'),
         hours: '',
         minutes: '',
       }));
       setEntries(newEntries);
     } else if (mode === 'day') {
-      setEntries([{ id: entryId++, date: '', hours: '', minutes: '' }]);
+      setEntries([{ id: nextId.current++, date: '', hours: '', minutes: '' }]);
     }
   }, [mode, rangeStart, rangeEnd]);
 
@@ -53,7 +54,7 @@ const PlaytimeModal = ({ onClose, onSave }: Props) => {
   const addEntry = () => {
     setEntries(prev => [
       ...prev,
-      { id: entryId++, date: '', hours: '', minutes: '' },
+      { id: nextId.current++, date: '', hours: '', minutes: '' },
     ]);
   };
 
@@ -63,10 +64,41 @@ const PlaytimeModal = ({ onClose, onSave }: Props) => {
 
   const allValid = entries.every(e => e.date && e.hours && e.minutes);
 
-  const handleSave = () => {
-    if (allValid && onSave) {
-      onSave(entries);
+  const handleSave = async () => {
+    for (const entry of entries) {
+      const duration =
+        parseInt(entry.hours || '0', 10) * 60 +
+        parseInt(entry.minutes || '0', 10);
+
+      if (duration <= 0) continue;
+
+      const payload = {
+        playerId,
+        date: entry.date,
+        duration,
+      };
+
+      console.log('Отправка данных:', payload);
+
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/playtime`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        const text = await response.text();
+        console.log('Ответ от сервера:', response.status, text);
+
+        if (!response.ok) {
+          console.error('Ошибка при сохранении:', response.statusText);
+        }
+      } catch (err) {
+        console.error('Ошибка запроса:', err);
+      }
     }
+
+    if (onSave) onSave(entries);
     onClose();
   };
 
@@ -81,8 +113,7 @@ const PlaytimeModal = ({ onClose, onSave }: Props) => {
             value="day"
             checked={mode === 'day'}
             onChange={() => setMode('day')}
-          />{' '}
-          День
+          /> День
         </label>
         <label>
           <input
@@ -90,8 +121,7 @@ const PlaytimeModal = ({ onClose, onSave }: Props) => {
             value="range"
             checked={mode === 'range'}
             onChange={() => setMode('range')}
-          />{' '}
-          Период
+          /> Период
         </label>
       </div>
 
@@ -119,10 +149,7 @@ const PlaytimeModal = ({ onClose, onSave }: Props) => {
       )}
 
       {entries.map(entry => (
-        <div
-          key={entry.id}
-          className="flex items-center gap-4 mb-2 relative border p-2 rounded"
-        >
+        <div key={entry.id} className="flex items-center gap-4 mb-2 relative border p-2 rounded">
           <button
             onClick={() => removeEntry(entry.id)}
             className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center"
@@ -195,4 +222,4 @@ const PlaytimeModal = ({ onClose, onSave }: Props) => {
   );
 };
 
-export default PlaytimeModal;
+export default PlaytimeTable;
