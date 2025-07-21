@@ -83,9 +83,15 @@ const PlayerListWithPlaytime = () => {
       start &&
       (end ? date.isBetween(start, end, 'day', '[]') : date.isSame(start) || date.isAfter(start));
 
-    if (inVacation) return 'yellow';
-
     const duration = player.timeLog[date.format('YYYY-MM-DD')] ?? 0;
+
+    if (inVacation){
+      if (duration > 0){
+        return 'orange';
+      }
+      return 'yellow'
+    };
+
     if (duration > 120) return 'blue';
     if (duration > 60) return 'green';
     if (duration > 0) return 'red';
@@ -132,15 +138,17 @@ const PlayerListWithPlaytime = () => {
         </label>
       </div>
 
-      <table className="w-full border border-collapse">
+      <table className="w-full border border-collapse text-center">
         <thead>
           <tr>
-            <th>Код</th>
-            <th>Игрок</th>
+            <th className="text-center align-middle">Код</th>
+            <th className="text-center align-middle">Игрок</th>
             {days.map(d => (
-              <th key={d.format('YYYY-MM-DD')}>{d.format('dd')}</th>
+              <th key={d.format('YYYY-MM-DD')} className="text-center align-middle">
+                {d.format('dd')}
+              </th>
             ))}
-            <th>Итого</th>
+            <th className="text-center align-middle">Итого</th>
           </tr>
         </thead>
         <tbody>
@@ -154,7 +162,7 @@ const PlayerListWithPlaytime = () => {
             const minutes = isNaN(total) ? 0 : total % 60;
 
             return (
-              <tr key={player.id}>
+              <tr key={player.id} className="text-center align-middle">
                 <td>{player.id}</td>
                 <td
                   className="cursor-pointer hover:underline"
@@ -172,20 +180,25 @@ const PlayerListWithPlaytime = () => {
                   const dateStr = d.format('YYYY-MM-DD');
                   const min = player.timeLog[dateStr] ?? 0;
                   const color = getSquareColor(d, player);
+
+                  // Формируем подсказку с датой и временем
+                  const hoursDay = Math.floor(min / 60);
+                  const minutesDay = min % 60;
+                  const title =
+                    min > 0
+                      ? `${d.format('DD.MM.YYYY')}\n${hoursDay} ч ${minutesDay} мин`
+                      : d.format('DD.MM.YYYY');
+
                   return (
                     <td
                       key={dateStr}
-                      title={
-                        min > 0
-                          ? `${Math.floor(min / 60)} ч ${min % 60} мин\n${d.format('DD.MM')}`
-                          : d.format('DD.MM')
-                      }
+                      title={title}
                       onClick={() => {
                         setSelectedPlayer(player);
                         setSelectedDate(dateStr);
                         setShowPlaytimeTable(true);
                       }}
-                      className="cursor-pointer select-none text-center"
+                      className="cursor-pointer select-none"
                     >
                       <div
                         style={{
@@ -200,7 +213,9 @@ const PlayerListWithPlaytime = () => {
                   );
                 })}
 
-                <td>{hours} ч {minutes} мин</td>
+                <td>
+                  {hours} ч {minutes} мин
+                </td>
               </tr>
             );
           })}

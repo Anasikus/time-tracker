@@ -36,33 +36,68 @@ const PlaytimeTable = ({ onClose, onSave, playerId, initialDate, vacationStart, 
   const nextId = useRef(1);
 
   useEffect(() => {
-    const generateEntry = (date: string): TimeEntry => {
+    const generateEntry = async (date: string): Promise<TimeEntry> => {
       const vacation = isDateInVacation(date, vacationStart, vacationEnd);
-      return {
-        id: nextId.current++,
-        date,
-        hours: vacation ? '0' : '',
-        minutes: vacation ? '0' : '',
-        isVacation: vacation,
-      };
+
+      let existing: TimeEntry | null = null;
+
+      // Попытка загрузить существующее время
+      try {
+        const res = await fetch(
+          `${import.meta.env.VITE_API_URL}/api/playtime/date?playerId=${playerId}&date=${date}`
+        );
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.duration) {
+            const minutes = data.duration % 60;
+            const hours = Math.floor(data.duration / 60);
+            existing = {
+              id: nextId.current++,
+              date,
+              hours: String(hours),
+              minutes: String(minutes),
+              isVacation: vacation,
+            };
+          }
+        }
+      } catch (e) {
+        console.error('Ошибка загрузки времени:', e);
+      }
+
+      return (
+        existing || {
+          id: nextId.current++,
+          date,
+          hours: vacation ? '0' : '',
+          minutes: vacation ? '0' : '',
+          isVacation: vacation,
+        }
+      );
     };
 
-    if (mode === 'range' && rangeStart && rangeEnd) {
-      const start = dayjs(rangeStart);
-      const end = dayjs(rangeEnd);
-      if (!start.isValid() || !end.isValid() || end.isBefore(start)) return;
+    const init = async () => {
+      if (mode === 'range' && rangeStart && rangeEnd) {
+        const start = dayjs(rangeStart);
+        const end = dayjs(rangeEnd);
+        if (!start.isValid() || !end.isValid() || end.isBefore(start)) return;
 
-      const diff = end.diff(start, 'day') + 1;
-      const newEntries: TimeEntry[] = Array.from({ length: diff }).map((_, i) =>
-        generateEntry(start.add(i, 'day').format('YYYY-MM-DD'))
-      );
-      setEntries(newEntries);
-    } else if (mode === 'day') {
-      setEntries([
-        generateEntry(initialDate || '')
-      ]);
-    }
+        const diff = end.diff(start, 'day') + 1;
+        const newEntries: TimeEntry[] = await Promise.all(
+          Array.from({ length: diff }).map((_, i) =>
+            generateEntry(start.add(i, 'day').format('YYYY-MM-DD'))
+          )
+        );
+        setEntries(newEntries);
+      } else if (mode === 'day' && initialDate) {
+        const entry = await generateEntry(initialDate);
+        setEntries([entry]);
+      }
+    };
+
+    init();
   }, [mode, rangeStart, rangeEnd, initialDate, vacationStart, vacationEnd]);
+
 
   const updateEntry = (id: number, key: keyof TimeEntry, value: string) => {
     setEntries(prev =>
@@ -112,7 +147,6 @@ const PlaytimeTable = ({ onClose, onSave, playerId, initialDate, vacationStart, 
           body: JSON.stringify(payload),
         });
 
-        const text = await response.text();
         if (!response.ok) {
           console.error('Ошибка при сохранении:', response.statusText);
         } else {
@@ -212,7 +246,6 @@ const PlaytimeTable = ({ onClose, onSave, playerId, initialDate, vacationStart, 
               onChange={e => updateEntry(entry.id, 'hours', e.target.value)}
               className="border p-1 rounded w-full"
               placeholder="0–24"
-              disabled={entry.isVacation}
             />
           </div>
           <div className="w-24">
@@ -225,7 +258,6 @@ const PlaytimeTable = ({ onClose, onSave, playerId, initialDate, vacationStart, 
               onChange={e => updateEntry(entry.id, 'minutes', e.target.value)}
               className="border p-1 rounded w-full"
               placeholder="0–59"
-              disabled={entry.isVacation}
             />
           </div>
         </div>

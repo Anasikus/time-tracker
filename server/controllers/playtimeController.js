@@ -13,9 +13,7 @@ export const addPlaytime = async (req, res) => {
           date: new Date(date),
         },
       },
-      update: {
-        duration,
-      },
+      update: { duration },
       create: {
         playerId,
         date: new Date(date),
@@ -35,7 +33,6 @@ export const getPlaytimeByWeek = async (req, res) => {
   try {
     const { start, end } = req.query;
 
-    // Получаем игроков с нужными связями
     const [players, timeLogs] = await Promise.all([
       prisma.player.findMany({
         include: {
@@ -54,16 +51,12 @@ export const getPlaytimeByWeek = async (req, res) => {
       }),
     ]);
 
-    // Группируем логи по игрокам
     const groupedLogs = timeLogs.reduce((acc, log) => {
-      if (!acc[log.playerId]) {
-        acc[log.playerId] = [];
-      }
+      if (!acc[log.playerId]) acc[log.playerId] = [];
       acc[log.playerId].push(log);
       return acc;
     }, {});
 
-    // Формируем результат с данными игроков и их временем
     const result = players.map(player => ({
       player: {
         id: player.id,
@@ -82,5 +75,28 @@ export const getPlaytimeByWeek = async (req, res) => {
   } catch (error) {
     console.error('[getPlaytimeByWeek] Ошибка:', error);
     res.status(500).json({ error: 'Ошибка сервера при получении данных' });
+  }
+};
+
+export const getPlaytimeByDate = async (req, res) => {
+  try {
+    const { playerId, date } = req.query;
+    if (!playerId || !date) {
+      return res.status(400).json({ error: 'Missing playerId or date' });
+    }
+
+    const entry = await prisma.timeLog.findFirst({
+      where: {
+        playerId: parseInt(playerId),
+        date: new Date(date),
+      },
+    });
+
+    if (!entry) return res.status(404).json({});
+
+    res.json({ duration: entry.duration });
+  } catch (error) {
+    console.error('[getPlaytimeByDate] Ошибка:', error);
+    res.status(500).json({ error: 'Ошибка при получении записи' });
   }
 };
