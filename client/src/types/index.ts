@@ -5,6 +5,9 @@ export interface Player {
   position?: Position;
   server?: Server;
   createdAt: string;
+  vacationStart?: string | null;
+  vacationEnd?: string | null;
+  comment?: string | null;
 }
 
 export interface Status {

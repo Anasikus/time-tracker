@@ -46,7 +46,15 @@ export const createPlayer = async (req, res) => {
 export const updatePlayer = async (req, res) => {
   try {
     const { id } = req.params;
-    const { nickname, statusId, positionId, serverId } = req.body;
+    const {
+      nickname,
+      statusId,
+      positionId,
+      serverId,
+      vacationStart,
+      vacationEnd,
+      comment,
+    } = req.body;
 
     if (!nickname || !statusId || !positionId) {
       return res.status(400).json({ error: "nickname, statusId, and positionId are required." });
@@ -59,6 +67,9 @@ export const updatePlayer = async (req, res) => {
         statusId,
         positionId,
         serverId: serverId || null,
+        vacationStart: vacationStart ? new Date(vacationStart) : null,
+        vacationEnd: vacationEnd ? new Date(vacationEnd) : null,
+        comment: comment ?? null,
       },
     });
 

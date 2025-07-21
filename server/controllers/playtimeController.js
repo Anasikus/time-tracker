@@ -35,6 +35,7 @@ export const getPlaytimeByWeek = async (req, res) => {
   try {
     const { start, end } = req.query;
 
+    // Получаем игроков с нужными связями
     const [players, timeLogs] = await Promise.all([
       prisma.player.findMany({
         include: {
@@ -53,6 +54,7 @@ export const getPlaytimeByWeek = async (req, res) => {
       }),
     ]);
 
+    // Группируем логи по игрокам
     const groupedLogs = timeLogs.reduce((acc, log) => {
       if (!acc[log.playerId]) {
         acc[log.playerId] = [];
@@ -61,6 +63,7 @@ export const getPlaytimeByWeek = async (req, res) => {
       return acc;
     }, {});
 
+    // Формируем результат с данными игроков и их временем
     const result = players.map(player => ({
       player: {
         id: player.id,
@@ -68,6 +71,9 @@ export const getPlaytimeByWeek = async (req, res) => {
         status: player.status,
         position: player.position,
         server: player.server,
+        vacationStart: player.vacationStart,
+        vacationEnd: player.vacationEnd,
+        comment: player.comment,
       },
       timeLog: groupedLogs[player.id] || [],
     }));

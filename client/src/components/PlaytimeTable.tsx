@@ -1,4 +1,3 @@
-// PlaytimeTable.tsx
 import { useState, useEffect, useRef } from 'react';
 import dayjs from 'dayjs';
 
@@ -7,6 +6,7 @@ type TimeEntry = {
   date: string;
   hours: string;
   minutes: string;
+  isVacation?: boolean;
 };
 
 type Mode = 'day' | 'range';
@@ -15,9 +15,20 @@ type Props = {
   onClose: () => void;
   playerId: number;
   onSave?: (entries: TimeEntry[]) => void;
+  initialDate?: string;
+  vacationStart?: string | null;
+  vacationEnd?: string | null;
 };
 
-const PlaytimeTable = ({ onClose, onSave, playerId }: Props) => {
+const isDateInVacation = (date: string, vacationStart?: string | null, vacationEnd?: string | null) => {
+  if (!vacationStart) return false;
+  const target = dayjs(date);
+  const start = dayjs(vacationStart);
+  const end = vacationEnd ? dayjs(vacationEnd) : dayjs(); // если отпуск открыт — до сегодня
+  return target.isSame(start) || target.isSame(end) || (target.isAfter(start) && target.isBefore(end));
+};
+
+const PlaytimeTable = ({ onClose, onSave, playerId, initialDate, vacationStart, vacationEnd }: Props) => {
   const [mode, setMode] = useState<Mode>('day');
   const [rangeStart, setRangeStart] = useState('');
   const [rangeEnd, setRangeEnd] = useState('');
@@ -25,23 +36,33 @@ const PlaytimeTable = ({ onClose, onSave, playerId }: Props) => {
   const nextId = useRef(1);
 
   useEffect(() => {
+    const generateEntry = (date: string): TimeEntry => {
+      const vacation = isDateInVacation(date, vacationStart, vacationEnd);
+      return {
+        id: nextId.current++,
+        date,
+        hours: vacation ? '0' : '',
+        minutes: vacation ? '0' : '',
+        isVacation: vacation,
+      };
+    };
+
     if (mode === 'range' && rangeStart && rangeEnd) {
       const start = dayjs(rangeStart);
       const end = dayjs(rangeEnd);
-      if (end.isBefore(start)) return;
+      if (!start.isValid() || !end.isValid() || end.isBefore(start)) return;
 
       const diff = end.diff(start, 'day') + 1;
-      const newEntries: TimeEntry[] = Array.from({ length: diff }).map((_, i) => ({
-        id: nextId.current++,
-        date: start.add(i, 'day').format('YYYY-MM-DD'),
-        hours: '',
-        minutes: '',
-      }));
+      const newEntries: TimeEntry[] = Array.from({ length: diff }).map((_, i) =>
+        generateEntry(start.add(i, 'day').format('YYYY-MM-DD'))
+      );
       setEntries(newEntries);
     } else if (mode === 'day') {
-      setEntries([{ id: nextId.current++, date: '', hours: '', minutes: '' }]);
+      setEntries([
+        generateEntry(initialDate || '')
+      ]);
     }
-  }, [mode, rangeStart, rangeEnd]);
+  }, [mode, rangeStart, rangeEnd, initialDate, vacationStart, vacationEnd]);
 
   const updateEntry = (id: number, key: keyof TimeEntry, value: string) => {
     setEntries(prev =>
@@ -54,7 +75,13 @@ const PlaytimeTable = ({ onClose, onSave, playerId }: Props) => {
   const addEntry = () => {
     setEntries(prev => [
       ...prev,
-      { id: nextId.current++, date: '', hours: '', minutes: '' },
+      {
+        id: nextId.current++,
+        date: '',
+        hours: '',
+        minutes: '',
+        isVacation: false,
+      }
     ]);
   };
 
@@ -62,7 +89,7 @@ const PlaytimeTable = ({ onClose, onSave, playerId }: Props) => {
     setEntries(prev => prev.filter(entry => entry.id !== id));
   };
 
-  const allValid = entries.every(e => e.date && e.hours && e.minutes);
+  const allValid = entries.every(e => e.date && (e.hours || e.minutes));
 
   const handleSave = async () => {
     for (const entry of entries) {
@@ -78,8 +105,6 @@ const PlaytimeTable = ({ onClose, onSave, playerId }: Props) => {
         duration,
       };
 
-      console.log('Отправка данных:', payload);
-
       try {
         const response = await fetch(`${import.meta.env.VITE_API_URL}/api/playtime`, {
           method: 'POST',
@@ -88,15 +113,16 @@ const PlaytimeTable = ({ onClose, onSave, playerId }: Props) => {
         });
 
         const text = await response.text();
-        console.log('Ответ от сервера:', response.status, text);
-
         if (!response.ok) {
           console.error('Ошибка при сохранении:', response.statusText);
+        } else {
+          console.log('Успешно сохранено:', payload);
         }
       } catch (err) {
         console.error('Ошибка запроса:', err);
       }
     }
+
     if (onSave) onSave(entries);
     else onClose();
   };
@@ -148,7 +174,10 @@ const PlaytimeTable = ({ onClose, onSave, playerId }: Props) => {
       )}
 
       {entries.map(entry => (
-        <div key={entry.id} className="flex items-center gap-4 mb-2 relative border p-2 rounded">
+        <div
+          key={entry.id}
+          className={`flex items-center gap-4 mb-2 relative border p-2 rounded ${entry.isVacation ? 'bg-yellow-100' : ''}`}
+        >
           <button
             onClick={() => removeEntry(entry.id)}
             className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center"
@@ -161,7 +190,16 @@ const PlaytimeTable = ({ onClose, onSave, playerId }: Props) => {
             <input
               type="date"
               value={entry.date}
-              onChange={e => updateEntry(entry.id, 'date', e.target.value)}
+              onChange={e => {
+                const date = e.target.value;
+                const vacation = isDateInVacation(date, vacationStart, vacationEnd);
+                updateEntry(entry.id, 'date', date);
+                updateEntry(entry.id, 'isVacation', vacation.toString());
+                if (vacation) {
+                  updateEntry(entry.id, 'hours', '0');
+                  updateEntry(entry.id, 'minutes', '0');
+                }
+              }}
               className="border p-1 rounded w-full"
             />
           </div>
@@ -174,6 +212,7 @@ const PlaytimeTable = ({ onClose, onSave, playerId }: Props) => {
               onChange={e => updateEntry(entry.id, 'hours', e.target.value)}
               className="border p-1 rounded w-full"
               placeholder="0–24"
+              disabled={entry.isVacation}
             />
           </div>
           <div className="w-24">
@@ -186,19 +225,18 @@ const PlaytimeTable = ({ onClose, onSave, playerId }: Props) => {
               onChange={e => updateEntry(entry.id, 'minutes', e.target.value)}
               className="border p-1 rounded w-full"
               placeholder="0–59"
+              disabled={entry.isVacation}
             />
           </div>
         </div>
       ))}
 
-      {allValid && (
-        <button
-          onClick={addEntry}
-          className="mt-4 px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700"
-        >
-          Добавить запись
-        </button>
-      )}
+      <button
+        onClick={addEntry}
+        className="mt-4 px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700"
+      >
+        Добавить запись
+      </button>
 
       <div className="flex justify-between pt-4">
         <button

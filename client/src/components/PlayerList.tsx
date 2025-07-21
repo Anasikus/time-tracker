@@ -2,10 +2,12 @@ import { useEffect, useState, useCallback } from 'react';
 import { getPlaytimeByWeek } from '../services/api';
 import type { Player } from '../types';
 import dayjs from 'dayjs';
+import isBetween from 'dayjs/plugin/isBetween';
+dayjs.extend(isBetween);
+
 import Modal from './Modal';
 import PlayerDetails from './PlayerDetails';
 import PlaytimeTable from './PlaytimeTable';
-import axios from 'axios';
 
 type TimeLogEntry = {
   id: number;
@@ -38,9 +40,8 @@ const PlayerListWithPlaytime = () => {
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerWithTimeLog | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [showPlaytimeTable, setShowPlaytimeTable] = useState(false);
-  const [players, setPlayers] = useState<Player[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
-  // Обновление времени
   const fetchData = useCallback(async () => {
     try {
       const start = startDate.format('YYYY-MM-DD');
@@ -55,29 +56,14 @@ const PlayerListWithPlaytime = () => {
     }
   }, [startDate, endDate]);
 
-  // Загрузка игроков
-  const fetchPlayers = useCallback(async () => {
-    try {
-      const res = await axios.get('/api/players');
-      setPlayers(res.data);
-    } catch (error) {
-      console.error('Ошибка при загрузке игроков:', error);
-    }
-  }, []);
-
-  // Загрузка данных при изменении дат
   useEffect(() => {
     fetchData();
-    fetchPlayers();
-  }, [fetchData, fetchPlayers]);
+  }, [fetchData]);
 
-  // Обновление при редактировании
   const handleUpdated = () => {
-    fetchPlayers();
     fetchData();
   };
 
-  // Группировка
   const grouped: Record<number, PlayerWithTimeLog> = {};
   data.forEach(({ player, timeLog }) => {
     if (!grouped[player.id]) {
@@ -89,8 +75,17 @@ const PlayerListWithPlaytime = () => {
     });
   });
 
-  const getSquareColor = (duration: number): string => {
-    if (duration === -1) return 'yellow';
+  const getSquareColor = (date: dayjs.Dayjs, player: PlayerWithTimeLog): string => {
+    const start = player.vacationStart ? dayjs(player.vacationStart) : null;
+    const end = player.vacationEnd ? dayjs(player.vacationEnd) : null;
+
+    const inVacation =
+      start &&
+      (end ? date.isBetween(start, end, 'day', '[]') : date.isSame(start) || date.isAfter(start));
+
+    if (inVacation) return 'yellow';
+
+    const duration = player.timeLog[date.format('YYYY-MM-DD')] ?? 0;
     if (duration > 120) return 'blue';
     if (duration > 60) return 'green';
     if (duration > 0) return 'red';
@@ -176,13 +171,18 @@ const PlayerListWithPlaytime = () => {
                 {days.map(d => {
                   const dateStr = d.format('YYYY-MM-DD');
                   const min = player.timeLog[dateStr] ?? 0;
-                  const color = getSquareColor(min);
+                  const color = getSquareColor(d, player);
                   return (
                     <td
                       key={dateStr}
-                      title={min > 0 ? `${Math.floor(min / 60)} ч ${min % 60} мин\n${d.format('DD.MM')}` : d.format('DD.MM')}
+                      title={
+                        min > 0
+                          ? `${Math.floor(min / 60)} ч ${min % 60} мин\n${d.format('DD.MM')}`
+                          : d.format('DD.MM')
+                      }
                       onClick={() => {
                         setSelectedPlayer(player);
+                        setSelectedDate(dateStr);
                         setShowPlaytimeTable(true);
                       }}
                       className="cursor-pointer select-none text-center"
@@ -225,17 +225,19 @@ const PlayerListWithPlaytime = () => {
         </Modal>
       )}
 
-      {showPlaytimeTable && (
+      {showPlaytimeTable && selectedPlayer && selectedDate && (
         <Modal onClose={() => setShowPlaytimeTable(false)}>
-        <PlaytimeTable
-          onClose={() => setShowPlaytimeTable(false)}
-          playerId={selectedPlayer?.id ?? 0}
-          onSave={() => {
-            setShowPlaytimeTable(false);
-            handleUpdated(); // обновим данные
-          }}
-        />
-
+          <PlaytimeTable
+            onClose={() => setShowPlaytimeTable(false)}
+            playerId={selectedPlayer.id}
+            initialDate={selectedDate}
+            onSave={() => {
+              setShowPlaytimeTable(false);
+              handleUpdated();
+            }}
+            vacationStart={selectedPlayer.vacationStart}
+            vacationEnd={selectedPlayer.vacationEnd}
+          />
         </Modal>
       )}
     </div>

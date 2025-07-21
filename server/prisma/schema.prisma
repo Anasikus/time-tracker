@@ -8,12 +8,15 @@ datasource db {
 }
 
 model Player {
-  id          Int       @id @default(autoincrement())
-  nickname    String
-  statusId    Int
-  positionId  Int
-  serverId    Int?
-  createdAt   DateTime  @default(now())
+  id            Int       @id @default(autoincrement())
+  nickname      String
+  statusId      Int
+  positionId    Int
+  serverId      Int?
+  createdAt     DateTime  @default(now())
+  vacationStart DateTime? // начало отпуска
+  vacationEnd   DateTime? // конец отпуска (опционально)
+  comment       String?   // комментарий
 
   status      Status    @relation(fields: [statusId], references: [id])
   position    Position  @relation(fields: [positionId], references: [id])
@@ -22,6 +25,7 @@ model Player {
 
   @@map("players")
 }
+
 
 model TimeLog {
   id        Int      @id @default(autoincrement())
