@@ -3,6 +3,7 @@ import { getPlaytimeByWeek } from '../services/api';
 import type { Player } from '../types';
 import dayjs from 'dayjs';
 import isBetween from 'dayjs/plugin/isBetween';
+import isoWeek from 'dayjs/plugin/isoWeek';
 import * as XLSX from 'xlsx';
 import ServerHeader from './ServerHeader';
 import Modal from './Modal';
@@ -10,8 +11,8 @@ import PlayerDetails from './PlayerDetails';
 import PlaytimeTable from './PlaytimeTable';
 import PlayerForm from './PlayerForm';
 
-
 dayjs.extend(isBetween);
+dayjs.extend(isoWeek); // чтобы неделя начиналась с понедельника
 
 type TimeLogEntry = {
   id: number;
@@ -30,28 +31,41 @@ type PlayerWithTimeLog = Player & {
   timeLog: Record<string, number>;
 };
 
+type ViewMode = 'week' | 'monthDays' | 'monthWeeks';
+
 const PlayerListWithPlaytime = () => {
   const today = dayjs();
   const [month, setMonth] = useState(today.month());
   const [year, setYear] = useState(today.year());
   const [weekIndex, setWeekIndex] = useState(0);
+  const [viewMode, setViewMode] = useState<ViewMode>('week'); // 'week' | 'monthDays' | 'monthWeeks'
   const [servers, setServers] = useState<string[]>([]);
   const [selectedServer, setSelectedServer] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
 
+  // Расчёт диапазона дат для fetch в зависимости от режима
+  let startDate: dayjs.Dayjs;
+  let endDate: dayjs.Dayjs;
 
-  const weekStart = dayjs()
-    .year(year)
-    .month(month)
-    .startOf('month')
-    .startOf('week')
-    .add(weekIndex * 7, 'day');
-  const weekEnd = weekStart.add(6, 'day');
+  if (viewMode === 'week') {
+    // Неделя начинается с понедельника благодаря isoWeek
+    startDate = dayjs()
+      .year(year)
+      .month(month)
+      .startOf('month')
+      .startOf('isoWeek')
+      .add(weekIndex * 7, 'day');
+    endDate = startDate.add(6, 'day');
+  } else {
+    startDate = dayjs().year(year).month(month).startOf('month');
+    endDate = dayjs().year(year).month(month).endOf('month');
+  }
 
-  const [days, setDays] = useState(() =>
-    Array.from({ length: 7 }).map((_, i) => weekStart.add(i, 'day'))
-  );
+  const daysInMonth = endDate.date();
+
+  const [days, setDays] = useState<dayjs.Dayjs[]>([]);
+  const [monthWeeks, setMonthWeeks] = useState<{ start: dayjs.Dayjs; end: dayjs.Dayjs }[]>([]);
 
   const [data, setData] = useState<PlayerWithTimeLogs[]>([]);
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerWithTimeLog | null>(null);
@@ -60,10 +74,8 @@ const PlayerListWithPlaytime = () => {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
-    const start = weekStart.format('YYYY-MM-DD');
-    const end = weekEnd.format('YYYY-MM-DD');
     try {
-      const res = await getPlaytimeByWeek(start, end);
+      const res = await getPlaytimeByWeek(startDate.format('YYYY-MM-DD'), endDate.format('YYYY-MM-DD'));
       setData(res.data);
 
       const serverNames = Array.from(
@@ -75,16 +87,36 @@ const PlayerListWithPlaytime = () => {
       ) as string[];
       setServers(serverNames);
 
-      setDays(Array.from({ length: 7 }).map((_, i) => weekStart.add(i, 'day')));
+      if (viewMode === 'week') {
+        setDays(Array.from({ length: 7 }).map((_, i) => startDate.add(i, 'day')));
+        setMonthWeeks([]);
+      } else if (viewMode === 'monthDays') {
+        setDays(Array.from({ length: daysInMonth }).map((_, i) => startDate.add(i, 'day')));
+        setMonthWeeks([]);
+      } else if (viewMode === 'monthWeeks') {
+        const weeks = [];
+        let current = startDate.startOf('isoWeek');
+        const monthEnd = endDate.endOf('day');
+        while (current.isBefore(monthEnd)) {
+          weeks.push({
+            start: current,
+            end: current.add(6, 'day'),
+          });
+          current = current.add(1, 'week');
+        }
+        setMonthWeeks(weeks);
+        setDays([]);
+      }
     } catch (err) {
       console.error('Ошибка при загрузке:', err);
     }
-  }, [weekStart, weekEnd]);
+  }, [startDate, endDate, viewMode, daysInMonth]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
+  // Фильтрация игроков
   const filteredPlayers = data
     .filter(p => !selectedServer || p.player.server?.name === selectedServer)
     .filter(
@@ -105,6 +137,7 @@ const PlayerListWithPlaytime = () => {
     });
   });
 
+  // Цвет квадратиков с датами (отображение отпуска, времени)
   const getSquareColor = (date: dayjs.Dayjs, player: PlayerWithTimeLog): string => {
     const start = player.vacationStart ? dayjs(player.vacationStart) : null;
     const end = player.vacationEnd ? dayjs(player.vacationEnd) : null;
@@ -116,14 +149,14 @@ const PlayerListWithPlaytime = () => {
     const duration = player.timeLog[date.format('YYYY-MM-DD')] ?? 0;
 
     if (inVacation) {
-      if (duration > 0) return '#f97316'; // orange-500
-      return '#fde68a'; // yellow-300
+      if (duration > 0) return '#f97316'; // оранжевый
+      return '#fde68a'; // жёлтый отпуск
     }
 
-    if (duration > 120) return '#3b82f6'; // blue-500
-    if (duration > 60) return '#22c55e'; // green-500
-    if (duration > 0) return '#ef4444'; // red-500
-    return '#6b7280'; // gray-500
+    if (duration > 120) return '#3b82f6'; // синий
+    if (duration > 60) return '#22c55e'; // зелёный
+    if (duration > 0) return '#ef4444'; // красный
+    return '#6b7280'; // серый
   };
 
   const monthOptions = Array.from({
@@ -131,6 +164,7 @@ const PlayerListWithPlaytime = () => {
   }).map((_, i) => i);
   const yearOptions = Array.from({ length: 5 }, (_, i) => today.year() - i);
 
+  // Экспорт в Excel
   const exportToExcel = () => {
     const rows = Object.values(grouped).map(player => {
       const row: any = {
@@ -140,12 +174,27 @@ const PlayerListWithPlaytime = () => {
         Должность: player.position?.title ?? '',
       };
 
-      days.forEach(day => {
-        const d = day.format('YYYY-MM-DD');
-        row[d] = player.timeLog[d]
-          ? `${Math.floor(player.timeLog[d] / 60)}ч ${player.timeLog[d] % 60}м`
-          : '';
-      });
+      if (viewMode === 'monthWeeks') {
+        monthWeeks.forEach((week, idx) => {
+          let total = 0;
+          let day = week.start;
+          for (let i = 0; i < 7; i++) {
+            const dStr = day.format('YYYY-MM-DD');
+            total += player.timeLog[dStr] ?? 0;
+            day = day.add(1, 'day');
+          }
+          row[`Неделя ${idx + 1} (${week.start.format('DD.MM')}–${week.end.format('DD.MM')})`] = total
+            ? `${Math.floor(total / 60)}ч ${total % 60}м`
+            : '';
+        });
+      } else {
+        days.forEach(day => {
+          const d = day.format('YYYY-MM-DD');
+          row[d] = player.timeLog[d]
+            ? `${Math.floor(player.timeLog[d] / 60)}ч ${player.timeLog[d] % 60}м`
+            : '';
+        });
+      }
 
       return row;
     });
@@ -154,6 +203,11 @@ const PlayerListWithPlaytime = () => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Игроки');
     XLSX.writeFile(wb, `отчёт_${year}_${month + 1}.xlsx`);
+  };
+
+  const onWeekHeaderClick = (weekStart: dayjs.Dayjs) => {
+    setSelectedDate(weekStart.format('YYYY-MM-DD'));
+    setShowPlaytimeTable(true);
   };
 
   return (
@@ -196,22 +250,57 @@ const PlayerListWithPlaytime = () => {
           ))}
         </select>
 
-        <div className="flex gap-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setWeekIndex(i)}
-              className={`px-3 py-1 rounded-md font-medium transition ${
-                weekIndex === i
-                  ? 'bg-purple-700 shadow-md'
-                  : 'bg-gray-700 hover:bg-gray-600'
-              }`}
-              title={`${i + 1} неделя`}
-            >
-              {i + 1} неделя
-            </button>
-          ))}
+        <div className="flex gap-2 items-center">
+          <button
+            onClick={() => {
+              setViewMode('week');
+              setWeekIndex(0);
+            }}
+            className={`px-3 py-1 rounded-md font-medium transition ${
+              viewMode === 'week' ? 'bg-purple-700 shadow-md' : 'bg-gray-700 hover:bg-gray-600'
+            }`}
+            title="Неделя"
+          >
+            Неделя
+          </button>
+
+          <button
+            onClick={() => setViewMode('monthDays')}
+            className={`px-3 py-1 rounded-md font-medium transition ${
+              viewMode === 'monthDays' ? 'bg-purple-700 shadow-md' : 'bg-gray-700 hover:bg-gray-600'
+            }`}
+            title="Месяц по дням"
+          >
+            Месяц по дням
+          </button>
+
+          <button
+            onClick={() => setViewMode('monthWeeks')}
+            className={`px-3 py-1 rounded-md font-medium transition ${
+              viewMode === 'monthWeeks' ? 'bg-purple-700 shadow-md' : 'bg-gray-700 hover:bg-gray-600'
+            }`}
+            title="Месяц по неделям"
+          >
+            Месяц по неделям
+          </button>
         </div>
+
+        {viewMode === 'week' && (
+          <div className="flex gap-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setWeekIndex(i)}
+                className={`px-3 py-1 rounded-md font-medium transition ${
+                  weekIndex === i ? 'bg-purple-700 shadow-md' : 'bg-gray-700 hover:bg-gray-600'
+                }`}
+                title={`${i + 1} неделя`}
+              >
+                {i + 1} неделя
+              </button>
+            ))}
+          </div>
+        )}
 
         <input
           type="text"
@@ -227,12 +316,13 @@ const PlayerListWithPlaytime = () => {
         >
           Экспорт в Excel
         </button>
-          <button
-            onClick={() => setShowAddPlayerModal(true)}
-            className="bg-purple-700 text-white px-3 py-1 rounded hover:bg-purple-800"
-          >
-            Добавить игрока
-          </button>
+
+        <button
+          onClick={() => setShowAddPlayerModal(true)}
+          className="bg-purple-700 text-white px-3 py-1 rounded hover:bg-purple-800"
+        >
+          Добавить игрока
+        </button>
       </div>
 
       <div className="overflow-x-auto">
@@ -241,17 +331,62 @@ const PlayerListWithPlaytime = () => {
             <tr>
               <th className="border border-gray-700 px-2 py-1">Код</th>
               <th className="border border-gray-700 px-3 py-1 text-left">Игрок</th>
-              {days.map(d => (
-                <th key={d.format('YYYY-MM-DD')} className="border border-gray-700 px-1 py-1 min-w-[30px]">
-                  {d.format('dd')}
-                </th>
-              ))}
+
+              {viewMode === 'monthWeeks'
+                ? monthWeeks.map((week, idx) => (
+                    <th
+                      key={idx}
+                      className="border border-gray-700 px-3 py-1 cursor-pointer select-none"
+                      title={`Период: ${week.start.format('DD.MM.YYYY')} - ${week.end.format('DD.MM.YYYY')}`}
+                      onClick={() => onWeekHeaderClick(week.start)}
+                    >
+                      {`Неделя ${idx + 1}`}
+                      <br />
+                      <span className="text-xs">
+                        {week.start.format('DD.MM')}–{week.end.format('DD.MM')}
+                      </span>
+                    </th>
+                  ))
+                : days.map(d => (
+                    <th
+                      key={d.format('YYYY-MM-DD')}
+                      className="border border-gray-700 px-1 py-1 min-w-[30px]"
+                      title={d.format('DD.MM.YYYY')}
+                    >
+                      {/* Дни недели как даты, начиная с понедельника */}
+                      {d.format('DD.MM')}
+                    </th>
+                  ))}
+
               <th className="border border-gray-700 px-3 py-1">Итого</th>
             </tr>
           </thead>
           <tbody>
             {Object.values(grouped).map(player => {
-              const total = Object.values(player.timeLog || {}).reduce((sum, min) => sum + min, 0);
+              let total = 0;
+
+              const getDurationForWeek = (week: { start: dayjs.Dayjs; end: dayjs.Dayjs }) => {
+                let sum = 0;
+                let day = week.start;
+                for (let i = 0; i < 7; i++) {
+                  const dStr = day.format('YYYY-MM-DD');
+                  sum += player.timeLog[dStr] ?? 0;
+                  day = day.add(1, 'day');
+                }
+                return sum;
+              };
+
+              let weekDurations: number[] = [];
+              if (viewMode === 'monthWeeks') {
+                weekDurations = monthWeeks.map(w => getDurationForWeek(w));
+                total = weekDurations.reduce((a, b) => a + b, 0);
+              } else {
+                total = days.reduce(
+                  (sum, d) => sum + (player.timeLog[d.format('YYYY-MM-DD')] ?? 0),
+                  0
+                );
+              }
+
               const hours = Math.floor(total / 60);
               const minutes = total % 60;
 
@@ -274,37 +409,72 @@ const PlayerListWithPlaytime = () => {
                     <div className="text-xs text-gray-400">{player.server?.name ?? '—'}</div>
                   </td>
 
-                  {days.map(d => {
-                    const dateStr = d.format('YYYY-MM-DD');
-                    const min = player.timeLog[dateStr] ?? 0;
-                    const color = getSquareColor(d, player);
+                  {viewMode === 'monthWeeks'
+                    ? weekDurations.map((dur, i) => {
+                        const color =
+                          dur > 120
+                            ? '#3b82f6'
+                            : dur > 60
+                            ? '#22c55e'
+                            : dur > 0
+                            ? '#ef4444'
+                            : '#6b7280';
 
-                    return (
-                      <td
-                        key={dateStr}
-                        title={min > 0 ? `${Math.floor(min / 60)} ч ${min % 60} мин` : ''}
-                        onClick={() => {
-                          setSelectedPlayer(player);
-                          setSelectedDate(dateStr);
-                          setShowPlaytimeTable(true);
-                        }}
-                        className="px-1 py-1"
-                      >
-                        <div
-                          style={{
-                            width: 34,
-                            height: 34,
-                            margin: '0 auto',
-                            backgroundColor: color,
-                            borderRadius: 6,
-                            boxShadow:
-                              color !== '#6b7280' ? `0 0 8px ${color}` : undefined,
-                            transition: 'background-color 0.3s ease',
-                          }}
-                        />
-                      </td>
-                    );
-                  })}
+                        return (
+                          <td
+                            key={i}
+                            title={`${Math.floor(dur / 60)} ч ${dur % 60} мин`}
+                            className="px-3 py-1"
+                            onClick={() => {
+                              setSelectedPlayer(player);
+                              setSelectedDate(monthWeeks[i].start.format('YYYY-MM-DD'));
+                              setShowPlaytimeTable(true);
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: 34,
+                                height: 34,
+                                margin: '0 auto',
+                                backgroundColor: color,
+                                borderRadius: 6,
+                                boxShadow: dur ? `0 0 8px ${color}` : undefined,
+                                transition: 'background-color 0.3s ease',
+                              }}
+                            />
+                          </td>
+                        );
+                      })
+                    : days.map(d => {
+                        const dateStr = d.format('YYYY-MM-DD');
+                        const min = player.timeLog[dateStr] ?? 0;
+                        const color = getSquareColor(d, player);
+
+                        return (
+                          <td
+                            key={dateStr}
+                            title={min > 0 ? `${Math.floor(min / 60)} ч ${min % 60} мин` : ''}
+                            onClick={() => {
+                              setSelectedPlayer(player);
+                              setSelectedDate(dateStr);
+                              setShowPlaytimeTable(true);
+                            }}
+                            className="px-1 py-1"
+                          >
+                            <div
+                              style={{
+                                width: 34,
+                                height: 34,
+                                margin: '0 auto',
+                                backgroundColor: color,
+                                borderRadius: 6,
+                                boxShadow: color !== '#6b7280' ? `0 0 8px ${color}` : undefined,
+                                transition: 'background-color 0.3s ease',
+                              }}
+                            />
+                          </td>
+                        );
+                      })}
 
                   <td className="border border-gray-700 px-3 py-1 font-semibold">
                     {hours} ч {minutes} мин
@@ -318,7 +488,11 @@ const PlayerListWithPlaytime = () => {
 
       {showDetails && selectedPlayer && (
         <Modal onClose={() => setShowDetails(false)}>
-          <PlayerDetails player={selectedPlayer} onClose={() => setShowDetails(false)} onUpdated={fetchData} />
+          <PlayerDetails
+            player={selectedPlayer}
+            onClose={() => setShowDetails(false)}
+            onUpdated={fetchData}
+          />
         </Modal>
       )}
 
@@ -357,7 +531,6 @@ const PlayerListWithPlaytime = () => {
           </div>
         </Modal>
       )}
-
     </div>
   );
 };

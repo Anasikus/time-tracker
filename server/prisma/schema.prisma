@@ -16,16 +16,16 @@ model Player {
   createdAt     DateTime  @default(now())
   vacationStart DateTime? // начало отпуска
   vacationEnd   DateTime? // конец отпуска (опционально)
-  comment       String?   // комментарий
+  comment       String? // комментарий
 
-  status      Status    @relation(fields: [statusId], references: [id])
-  position    Position  @relation(fields: [positionId], references: [id])
-  server      Server?   @relation(fields: [serverId], references: [id])
-  timeLogs    TimeLog[]
+  status          Status            @relation(fields: [statusId], references: [id])
+  position        Position          @relation(fields: [positionId], references: [id])
+  server          Server?           @relation(fields: [serverId], references: [id])
+  timeLogs        TimeLog[]
+  ModerationStats ModerationStats[]
 
   @@map("players")
 }
-
 
 model TimeLog {
   id        Int      @id @default(autoincrement())
@@ -34,32 +34,46 @@ model TimeLog {
   duration  Int
   createdAt DateTime @default(now())
 
-  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@unique([playerId, date])
 }
 
-
 model Status {
-  id       Int      @id @default(autoincrement())
-  label    String   @unique
-  players  Player[]
+  id      Int      @id @default(autoincrement())
+  label   String   @unique
+  players Player[]
 
   @@map("statuses")
 }
 
 model Position {
-  id       Int      @id @default(autoincrement())
-  title    String   @unique
-  players  Player[]
+  id      Int      @id @default(autoincrement())
+  title   String   @unique
+  players Player[]
 
   @@map("positions")
 }
 
 model Server {
-  id       Int      @id @default(autoincrement())
-  name     String
-  players  Player[]
+  id      Int      @id @default(autoincrement())
+  name    String
+  players Player[]
 
   @@map("servers")
+}
+
+model ModerationStats {
+  id       Int    @id @default(autoincrement())
+  player   Player @relation(fields: [playerId], references: [id])
+  playerId Int
+
+  complaints    Int @default(0)
+  appeals       Int @default(0)
+  modComplaints Int @default(0)
+  trainees      Int @default(0)
+  moderators    Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
