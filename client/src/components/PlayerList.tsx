@@ -10,6 +10,7 @@ import Modal from './Modal';
 import PlayerDetails from './PlayerDetails';
 import PlaytimeTable from './PlaytimeTable';
 import PlayerForm from './PlayerForm';
+import ModerationStatsTable from './ModerationStatsTable';
 
 dayjs.extend(isBetween);
 dayjs.extend(isoWeek); // чтобы неделя начиналась с понедельника
@@ -43,13 +44,13 @@ const PlayerListWithPlaytime = () => {
   const [selectedServer, setSelectedServer] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
+  const [mode, setMode] = useState<'playtime' | 'moderation'>('playtime');
 
-  // Расчёт диапазона дат для fetch в зависимости от режима
+  // Диапазон дат
   let startDate: dayjs.Dayjs;
   let endDate: dayjs.Dayjs;
 
   if (viewMode === 'week') {
-    // Неделя начинается с понедельника благодаря isoWeek
     startDate = dayjs()
       .year(year)
       .month(month)
@@ -137,7 +138,6 @@ const PlayerListWithPlaytime = () => {
     });
   });
 
-  // Цвет квадратиков с датами (отображение отпуска, времени)
   const getSquareColor = (date: dayjs.Dayjs, player: PlayerWithTimeLog): string => {
     const start = player.vacationStart ? dayjs(player.vacationStart) : null;
     const end = player.vacationEnd ? dayjs(player.vacationEnd) : null;
@@ -149,14 +149,14 @@ const PlayerListWithPlaytime = () => {
     const duration = player.timeLog[date.format('YYYY-MM-DD')] ?? 0;
 
     if (inVacation) {
-      if (duration > 0) return '#f97316'; // оранжевый
-      return '#fde68a'; // жёлтый отпуск
+      if (duration > 0) return '#f97316';
+      return '#fde68a';
     }
 
-    if (duration > 120) return '#3b82f6'; // синий
-    if (duration > 60) return '#22c55e'; // зелёный
-    if (duration > 0) return '#ef4444'; // красный
-    return '#6b7280'; // серый
+    if (duration > 120) return '#3b82f6';
+    if (duration > 60) return '#22c55e';
+    if (duration > 0) return '#ef4444';
+    return '#6b7280';
   };
 
   const monthOptions = Array.from({
@@ -164,7 +164,6 @@ const PlayerListWithPlaytime = () => {
   }).map((_, i) => i);
   const yearOptions = Array.from({ length: 5 }, (_, i) => today.year() - i);
 
-  // Экспорт в Excel
   const exportToExcel = () => {
     const rows = Object.values(grouped).map(player => {
       const row: any = {
@@ -216,275 +215,304 @@ const PlayerListWithPlaytime = () => {
         Отчёт по игрокам
       </h2>
 
+      {/* Блок переключения режимов */}
+      <div className="mb-6 flex gap-4">
+        <button
+          onClick={() => setMode('playtime')}
+          className={`px-4 py-2 rounded-md font-semibold transition ${
+            mode === 'playtime' ? 'bg-purple-700 shadow-md' : 'bg-gray-700 hover:bg-gray-600'
+          }`}
+        >
+          Время
+        </button>
+        <button
+          onClick={() => setMode('moderation')}
+          className={`px-4 py-2 rounded-md font-semibold transition ${
+            mode === 'moderation' ? 'bg-purple-700 shadow-md' : 'bg-gray-700 hover:bg-gray-600'
+          }`}
+        >
+          Модерация
+        </button>
+      </div>
+
+      {/* Серверы */}
       <ServerHeader
         servers={servers}
         selectedServer={selectedServer}
         onSelectServer={setSelectedServer}
       />
 
-      <div className="mb-6 flex flex-wrap items-center gap-4">
-        <select
-          value={year}
-          onChange={e => setYear(parseInt(e.target.value))}
-          className="bg-gray-800 text-white border border-gray-700 p-2 rounded-md transition focus:outline-none focus:ring-2 focus:ring-purple-600"
-        >
-          {yearOptions.map(y => (
-            <option key={y} value={y}>
-              {y}
-            </option>
-          ))}
-        </select>
+      {/* Если режим модерации - показываем таблицу модерации */}
+      {mode === 'moderation' ? (
+        <ModerationStatsTable />
+      ) : (
+        <>
+          {/* Фильтры и управление отображением */}
+          <div className="mb-6 flex flex-wrap items-center gap-4">
+            <select
+              value={year}
+              onChange={e => setYear(parseInt(e.target.value))}
+              className="bg-gray-800 text-white border border-gray-700 p-2 rounded-md transition focus:outline-none focus:ring-2 focus:ring-purple-600"
+            >
+              {yearOptions.map(y => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
 
-        <select
-          value={month}
-          onChange={e => {
-            setMonth(parseInt(e.target.value));
-            setWeekIndex(0);
-          }}
-          className="bg-gray-800 text-white border border-gray-700 p-2 rounded-md transition focus:outline-none focus:ring-2 focus:ring-purple-600"
-        >
-          {monthOptions.map(m => (
-            <option key={m} value={m}>
-              {dayjs().month(m).format('MMMM')}
-            </option>
-          ))}
-        </select>
+            <select
+              value={month}
+              onChange={e => {
+                setMonth(parseInt(e.target.value));
+                setWeekIndex(0);
+              }}
+              className="bg-gray-800 text-white border border-gray-700 p-2 rounded-md transition focus:outline-none focus:ring-2 focus:ring-purple-600"
+            >
+              {monthOptions.map(m => (
+                <option key={m} value={m}>
+                  {dayjs().month(m).format('MMMM')}
+                </option>
+              ))}
+            </select>
 
-        <div className="flex gap-2 items-center">
-          <button
-            onClick={() => {
-              setViewMode('week');
-              setWeekIndex(0);
-            }}
-            className={`px-3 py-1 rounded-md font-medium transition ${
-              viewMode === 'week' ? 'bg-purple-700 shadow-md' : 'bg-gray-700 hover:bg-gray-600'
-            }`}
-            title="Неделя"
-          >
-            Неделя
-          </button>
-
-          <button
-            onClick={() => setViewMode('monthDays')}
-            className={`px-3 py-1 rounded-md font-medium transition ${
-              viewMode === 'monthDays' ? 'bg-purple-700 shadow-md' : 'bg-gray-700 hover:bg-gray-600'
-            }`}
-            title="Месяц по дням"
-          >
-            Месяц по дням
-          </button>
-
-          <button
-            onClick={() => setViewMode('monthWeeks')}
-            className={`px-3 py-1 rounded-md font-medium transition ${
-              viewMode === 'monthWeeks' ? 'bg-purple-700 shadow-md' : 'bg-gray-700 hover:bg-gray-600'
-            }`}
-            title="Месяц по неделям"
-          >
-            Месяц по неделям
-          </button>
-        </div>
-
-        {viewMode === 'week' && (
-          <div className="flex gap-2">
-            {Array.from({ length: 5 }).map((_, i) => (
+            <div className="flex gap-2 items-center">
               <button
-                key={i}
-                onClick={() => setWeekIndex(i)}
+                onClick={() => {
+                  setViewMode('week');
+                  setWeekIndex(0);
+                }}
                 className={`px-3 py-1 rounded-md font-medium transition ${
-                  weekIndex === i ? 'bg-purple-700 shadow-md' : 'bg-gray-700 hover:bg-gray-600'
+                  viewMode === 'week' ? 'bg-purple-700 shadow-md' : 'bg-gray-700 hover:bg-gray-600'
                 }`}
-                title={`${i + 1} неделя`}
+                title="Неделя"
               >
-                {i + 1} неделя
+                Неделя
               </button>
-            ))}
-          </div>
-        )}
 
-        <input
-          type="text"
-          placeholder="Поиск по нику или ID"
-          className="bg-gray-800 text-white border border-gray-700 p-2 rounded-md flex-grow max-w-xs transition focus:outline-none focus:ring-2 focus:ring-purple-600"
-          value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
-        />
+              <button
+                onClick={() => setViewMode('monthDays')}
+                className={`px-3 py-1 rounded-md font-medium transition ${
+                  viewMode === 'monthDays' ? 'bg-purple-700 shadow-md' : 'bg-gray-700 hover:bg-gray-600'
+                }`}
+                title="Месяц по дням"
+              >
+                Месяц по дням
+              </button>
 
-        <button
-          onClick={exportToExcel}
-          className="bg-purple-700 hover:bg-purple-800 transition px-4 py-2 rounded-md font-semibold"
-        >
-          Экспорт в Excel
-        </button>
+              <button
+                onClick={() => setViewMode('monthWeeks')}
+                className={`px-3 py-1 rounded-md font-medium transition ${
+                  viewMode === 'monthWeeks' ? 'bg-purple-700 shadow-md' : 'bg-gray-700 hover:bg-gray-600'
+                }`}
+                title="Месяц по неделям"
+              >
+                Месяц по неделям
+              </button>
+            </div>
 
-        <button
-          onClick={() => setShowAddPlayerModal(true)}
-          className="bg-purple-700 text-white px-3 py-1 rounded hover:bg-purple-800"
-        >
-          Добавить игрока
-        </button>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse border border-gray-700 text-center text-sm md:text-base">
-          <thead className="bg-gray-900">
-            <tr>
-              <th className="border border-gray-700 px-2 py-1">Код</th>
-              <th className="border border-gray-700 px-3 py-1 text-left">Игрок</th>
-
-              {viewMode === 'monthWeeks'
-                ? monthWeeks.map((week, idx) => (
-                    <th
-                      key={idx}
-                      className="border border-gray-700 px-3 py-1 cursor-pointer select-none"
-                      title={`Период: ${week.start.format('DD.MM.YYYY')} - ${week.end.format('DD.MM.YYYY')}`}
-                      onClick={() => onWeekHeaderClick(week.start)}
-                    >
-                      {`Неделя ${idx + 1}`}
-                      <br />
-                      <span className="text-xs">
-                        {week.start.format('DD.MM')}–{week.end.format('DD.MM')}
-                      </span>
-                    </th>
-                  ))
-                : days.map(d => (
-                    <th
-                      key={d.format('YYYY-MM-DD')}
-                      className="border border-gray-700 px-1 py-1 min-w-[30px]"
-                      title={d.format('DD.MM.YYYY')}
-                    >
-                      {/* Дни недели как даты, начиная с понедельника */}
-                      {d.format('DD.MM')}
-                    </th>
-                  ))}
-
-              <th className="border border-gray-700 px-3 py-1">Итого</th>
-            </tr>
-          </thead>
-          <tbody>
-            {Object.values(grouped).map(player => {
-              let total = 0;
-
-              const getDurationForWeek = (week: { start: dayjs.Dayjs; end: dayjs.Dayjs }) => {
-                let sum = 0;
-                let day = week.start;
-                for (let i = 0; i < 7; i++) {
-                  const dStr = day.format('YYYY-MM-DD');
-                  sum += player.timeLog[dStr] ?? 0;
-                  day = day.add(1, 'day');
-                }
-                return sum;
-              };
-
-              let weekDurations: number[] = [];
-              if (viewMode === 'monthWeeks') {
-                weekDurations = monthWeeks.map(w => getDurationForWeek(w));
-                total = weekDurations.reduce((a, b) => a + b, 0);
-              } else {
-                total = days.reduce(
-                  (sum, d) => sum + (player.timeLog[d.format('YYYY-MM-DD')] ?? 0),
-                  0
-                );
-              }
-
-              const hours = Math.floor(total / 60);
-              const minutes = total % 60;
-
-              return (
-                <tr
-                  key={player.id}
-                  className="even:bg-gray-800 hover:bg-gray-700 cursor-pointer transition"
-                >
-                  <td className="border border-gray-700 px-2 py-1">{player.id}</td>
-                  <td
-                    className="border border-gray-700 px-3 py-1 text-left"
-                    onClick={() => {
-                      setSelectedPlayer(player);
-                      setShowDetails(true);
-                    }}
-                    title="Открыть подробности игрока"
+            {viewMode === 'week' && (
+              <div className="flex gap-2">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setWeekIndex(i)}
+                    className={`px-3 py-1 rounded-md font-medium transition ${
+                      weekIndex === i ? 'bg-purple-700 shadow-md' : 'bg-gray-700 hover:bg-gray-600'
+                    }`}
+                    title={`${i + 1} неделя`}
                   >
-                    <div className="font-semibold text-purple-300">{player.nickname}</div>
-                    <div className="text-xs text-gray-400">{player.position?.title ?? '—'}</div>
-                    <div className="text-xs text-gray-400">{player.server?.name ?? '—'}</div>
-                  </td>
+                    {i + 1} неделя
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <input
+              type="text"
+              placeholder="Поиск по нику или ID"
+              className="bg-gray-800 text-white border border-gray-700 p-2 rounded-md flex-grow max-w-xs transition focus:outline-none focus:ring-2 focus:ring-purple-600"
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+            />
+
+            <button
+              onClick={exportToExcel}
+              className="bg-purple-700 hover:bg-purple-800 transition px-4 py-2 rounded-md font-semibold"
+            >
+              Экспорт в Excel
+            </button>
+
+            <button
+              onClick={() => setShowAddPlayerModal(true)}
+              className="bg-purple-700 text-white px-3 py-1 rounded hover:bg-purple-800"
+            >
+              Добавить игрока
+            </button>
+          </div>
+
+          {/* Таблица игроков и времени */}
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse border border-gray-700 text-center text-sm md:text-base">
+              <thead className="bg-gray-900">
+                <tr>
+                  <th className="border border-gray-700 px-2 py-1">Код</th>
+                  <th className="border border-gray-700 px-3 py-1 text-left">Игрок</th>
 
                   {viewMode === 'monthWeeks'
-                    ? weekDurations.map((dur, i) => {
-                        const color =
-                          dur > 120
-                            ? '#3b82f6'
-                            : dur > 60
-                            ? '#22c55e'
-                            : dur > 0
-                            ? '#ef4444'
-                            : '#6b7280';
+                    ? monthWeeks.map((week, idx) => (
+                        <th
+                          key={idx}
+                          className="border border-gray-700 px-3 py-1 cursor-pointer select-none"
+                          title={`Период: ${week.start.format('DD.MM.YYYY')} - ${week.end.format('DD.MM.YYYY')}`}
+                          onClick={() => onWeekHeaderClick(week.start)}
+                        >
+                          {`Неделя ${idx + 1}`}
+                          <br />
+                          <span className="text-xs">
+                            {week.start.format('DD.MM')}–{week.end.format('DD.MM')}
+                          </span>
+                        </th>
+                      ))
+                    : days.map(d => (
+                        <th
+                          key={d.format('YYYY-MM-DD')}
+                          className="border border-gray-700 px-1 py-1 min-w-[30px]"
+                          title={d.format('DD.MM.YYYY')}
+                        >
+                          {d.format('DD.MM')}
+                        </th>
+                      ))}
 
-                        return (
-                          <td
-                            key={i}
-                            title={`${Math.floor(dur / 60)} ч ${dur % 60} мин`}
-                            className="px-3 py-1"
-                            onClick={() => {
-                              setSelectedPlayer(player);
-                              setSelectedDate(monthWeeks[i].start.format('YYYY-MM-DD'));
-                              setShowPlaytimeTable(true);
-                            }}
-                          >
-                            <div
-                              style={{
-                                width: 34,
-                                height: 34,
-                                margin: '0 auto',
-                                backgroundColor: color,
-                                borderRadius: 6,
-                                boxShadow: dur ? `0 0 8px ${color}` : undefined,
-                                transition: 'background-color 0.3s ease',
-                              }}
-                            />
-                          </td>
-                        );
-                      })
-                    : days.map(d => {
-                        const dateStr = d.format('YYYY-MM-DD');
-                        const min = player.timeLog[dateStr] ?? 0;
-                        const color = getSquareColor(d, player);
-
-                        return (
-                          <td
-                            key={dateStr}
-                            title={min > 0 ? `${Math.floor(min / 60)} ч ${min % 60} мин` : ''}
-                            onClick={() => {
-                              setSelectedPlayer(player);
-                              setSelectedDate(dateStr);
-                              setShowPlaytimeTable(true);
-                            }}
-                            className="px-1 py-1"
-                          >
-                            <div
-                              style={{
-                                width: 34,
-                                height: 34,
-                                margin: '0 auto',
-                                backgroundColor: color,
-                                borderRadius: 6,
-                                boxShadow: color !== '#6b7280' ? `0 0 8px ${color}` : undefined,
-                                transition: 'background-color 0.3s ease',
-                              }}
-                            />
-                          </td>
-                        );
-                      })}
-
-                  <td className="border border-gray-700 px-3 py-1 font-semibold">
-                    {hours} ч {minutes} мин
-                  </td>
+                  <th className="border border-gray-700 px-3 py-1">Итого</th>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+              </thead>
+              <tbody>
+                {Object.values(grouped).map(player => {
+                  let total = 0;
+
+                  const getDurationForWeek = (week: { start: dayjs.Dayjs; end: dayjs.Dayjs }) => {
+                    let sum = 0;
+                    let day = week.start;
+                    for (let i = 0; i < 7; i++) {
+                      const dStr = day.format('YYYY-MM-DD');
+                      sum += player.timeLog[dStr] ?? 0;
+                      day = day.add(1, 'day');
+                    }
+                    return sum;
+                  };
+
+                  let weekDurations: number[] = [];
+                  if (viewMode === 'monthWeeks') {
+                    weekDurations = monthWeeks.map(w => getDurationForWeek(w));
+                    total = weekDurations.reduce((a, b) => a + b, 0);
+                  } else {
+                    total = days.reduce(
+                      (sum, d) => sum + (player.timeLog[d.format('YYYY-MM-DD')] ?? 0),
+                      0
+                    );
+                  }
+
+                  const hours = Math.floor(total / 60);
+                  const minutes = total % 60;
+
+                  return (
+                    <tr
+                      key={player.id}
+                      className="even:bg-gray-800 hover:bg-gray-700 cursor-pointer transition"
+                    >
+                      <td className="border border-gray-700 px-2 py-1">{player.id}</td>
+                      <td
+                        className="border border-gray-700 px-3 py-1 text-left"
+                        onClick={() => {
+                          setSelectedPlayer(player);
+                          setShowDetails(true);
+                        }}
+                        title="Открыть подробности игрока"
+                      >
+                        <div className="font-semibold text-purple-300">{player.nickname}</div>
+                        <div className="text-xs text-gray-400">{player.position?.title ?? '—'}</div>
+                        <div className="text-xs text-gray-400">{player.server?.name ?? '—'}</div>
+                      </td>
+
+                      {viewMode === 'monthWeeks'
+                        ? weekDurations.map((dur, i) => {
+                            const color =
+                              dur > 120
+                                ? '#3b82f6'
+                                : dur > 60
+                                ? '#22c55e'
+                                : dur > 0
+                                ? '#ef4444'
+                                : '#6b7280';
+
+                            return (
+                              <td
+                                key={i}
+                                title={`${Math.floor(dur / 60)} ч ${dur % 60} мин`}
+                                className="px-3 py-1"
+                                onClick={() => {
+                                  setSelectedPlayer(player);
+                                  setSelectedDate(monthWeeks[i].start.format('YYYY-MM-DD'));
+                                  setShowPlaytimeTable(true);
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    width: 34,
+                                    height: 34,
+                                    margin: '0 auto',
+                                    backgroundColor: color,
+                                    borderRadius: 6,
+                                    boxShadow: dur ? `0 0 8px ${color}` : undefined,
+                                    transition: 'background-color 0.3s ease',
+                                  }}
+                                />
+                              </td>
+                            );
+                          })
+                        : days.map(d => {
+                            const dateStr = d.format('YYYY-MM-DD');
+                            const min = player.timeLog[dateStr] ?? 0;
+                            const color = getSquareColor(d, player);
+
+                            return (
+                              <td
+                                key={dateStr}
+                                title={min > 0 ? `${Math.floor(min / 60)} ч ${min % 60} мин` : ''}
+                                onClick={() => {
+                                  setSelectedPlayer(player);
+                                  setSelectedDate(dateStr);
+                                  setShowPlaytimeTable(true);
+                                }}
+                                className="px-1 py-1"
+                              >
+                                <div
+                                  style={{
+                                    width: 34,
+                                    height: 34,
+                                    margin: '0 auto',
+                                    backgroundColor: color,
+                                    borderRadius: 6,
+                                    boxShadow: color !== '#6b7280' ? `0 0 8px ${color}` : undefined,
+                                    transition: 'background-color 0.3s ease',
+                                  }}
+                                />
+                              </td>
+                            );
+                          })}
+
+                      <td className="border border-gray-700 px-3 py-1 font-semibold">
+                        {hours} ч {minutes} мин
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
 
       {showDetails && selectedPlayer && (
         <Modal onClose={() => setShowDetails(false)}>

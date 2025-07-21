@@ -4,6 +4,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import playerRoutes from './routes/players.js'
 import playtimeRoutes from './routes/playtime.js';
+import moderationRoutes from './routes/moderation.js';
+
 
 dotenv.config();
 
@@ -19,6 +21,7 @@ app.get('/', (req, res) => {
 
 app.use('/api/players', playerRoutes)
 app.use('/api/playtime', playtimeRoutes);
+app.use('/api/moderation', moderationRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
