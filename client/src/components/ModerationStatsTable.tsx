@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import dayjs from 'dayjs';
+import 'dayjs/locale/ru';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
-// Тип данных для статистики модерации
+// Устанавливаем русскую локаль для dayjs
+dayjs.locale('ru');
+
 interface ModerationStat {
   playerId: number;
   nickname: string;
@@ -24,7 +29,9 @@ export default function ModerationStatsTable({ selectedServer }: { selectedServe
   });
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Массив месяцев (0-11)
   const months = Array.from({ length: 12 }, (_, i) => i);
+  // Текущий и прошлый год для селекта
   const currentYear = dayjs().year();
   const years = [currentYear, currentYear - 1];
 
@@ -84,13 +91,36 @@ export default function ModerationStatsTable({ selectedServer }: { selectedServe
     }
   };
 
+  // Фильтрация по нику и ID
   const filteredStats = stats.filter(s =>
     s.nickname.toLowerCase().includes(searchTerm.toLowerCase()) ||
     s.playerId.toString().includes(searchTerm)
   );
 
+  // Экспорт в Excel
+  const exportToExcel = () => {
+    const dataToExport = filteredStats.map(stat => ({
+      ID: stat.playerId,
+      Ник: stat.nickname,
+      ЖБ: stat.complaints,
+      ОБ: stat.appeals,
+      ЖНМ: stat.modComplaints,
+      Стажёры: stat.trainees,
+      Модераторы: stat.moderators,
+      Сервер: stat.serverName ?? '',
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Статистика модерации");
+
+    const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], { type: 'application/octet-stream' });
+    saveAs(blob, `moderation_stats_${selectedMonth}.xlsx`);
+  };
+
   return (
-    <div className="p-4 text-white">
+    <div className="p-4 text-white min-h-[400px]">
       <div className="mb-4 flex flex-wrap gap-4 items-center">
         <select
           value={selectedMonth.split('-')[1]}
@@ -125,10 +155,17 @@ export default function ModerationStatsTable({ selectedServer }: { selectedServe
           placeholder="Поиск по нику или ID"
           className="bg-gray-800 text-white border border-gray-600 px-2 py-1 rounded w-64"
         />
+
+        <button
+          onClick={exportToExcel}
+          className="bg-purple-700 hover:bg-purple-800 text-white px-4 py-2 rounded transition"
+        >
+          Экспорт в Excel
+        </button>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full border border-gray-700 bg-gray-900 text-white">
+      <div className="overflow-x-auto border border-gray-700 rounded">
+        <table className="min-w-full border-collapse border border-gray-700 bg-gray-900 text-white">
           <thead>
             <tr className="bg-gray-800">
               <th className="p-2 border border-gray-700">ID</th>
