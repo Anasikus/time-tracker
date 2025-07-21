@@ -77,107 +77,130 @@ const PlayerDetails = ({ player, onClose, onUpdated }: PlayerDetailsProps) => {
   };
 
   return (
-    <div>
-      <h3 className="text-lg font-semibold mb-2">Информация об игроке</h3>
-
-      <p><strong>Код:</strong> {localPlayer.id}</p>
+    <div className="max-w-lg mx-auto bg-[#1a1a1a] p-6 rounded-xl shadow-lg text-white flex flex-col gap-4">
+      <h3 className="text-2xl font-semibold border-b border-purple-700 pb-2 mb-4">Информация об игроке</h3>
 
       {isEditing ? (
-        <>
-          <p>
-            <strong>Ник:</strong>{' '}
+        <form
+          onSubmit={e => {
+            e.preventDefault();
+            handleSave();
+          }}
+          className="flex flex-col gap-4"
+        >
+          <div>
+            <label className="block mb-1 text-sm font-medium text-gray-300">Ник</label>
             <input
+              type="text"
               value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-              className="border p-1 rounded"
+              onChange={e => setNickname(e.target.value)}
+              className="w-full p-2 rounded bg-[#121212] border border-transparent focus:border-purple-600 focus:ring-2 focus:ring-purple-600 text-gray-300 transition"
+              required
             />
-          </p>
+          </div>
 
-          <p>
-            <strong>Статус:</strong>{' '}
+          <div>
+            <label className="block mb-1 text-sm font-medium text-gray-300">Статус</label>
             <select
               value={statusId}
-              onChange={(e) => setStatusId(e.target.value)}
-              className="border p-1 rounded ml-2"
+              onChange={e => setStatusId(e.target.value)}
+              className="w-full p-2 rounded bg-[#121212] border border-transparent focus:border-purple-600 focus:ring-2 focus:ring-purple-600 text-gray-300 transition"
+              required
             >
               <option value="">—</option>
-              {statuses.map((s) => (
+              {statuses.map(s => (
                 <option key={s.id} value={s.id}>
                   {s.label}
                 </option>
               ))}
             </select>
-          </p>
+          </div>
 
           {isVacationStatus && (
-            <div className="mb-3 ml-6">
-              <p><strong>Период отпуска (необязательно):</strong></p>
-              <label className="mr-2">
-                С:{' '}
+            <div className="flex gap-4 items-center text-gray-400">
+              <div className="flex flex-col flex-1">
+                <label className="text-sm mb-1">Период отпуска — с</label>
                 <input
                   type="date"
                   value={vacationStart}
-                  onChange={(e) => setVacationStart(e.target.value)}
-                  className="border p-1 rounded"
+                  onChange={e => setVacationStart(e.target.value)}
+                  className="p-2 rounded bg-[#121212] border border-transparent focus:border-purple-600 focus:ring-2 focus:ring-purple-600 text-gray-300 transition"
                 />
-              </label>
-              <label>
-                По:{' '}
+              </div>
+              <div className="flex flex-col flex-1">
+                <label className="text-sm mb-1">по</label>
                 <input
                   type="date"
                   value={vacationEnd}
-                  onChange={(e) => setVacationEnd(e.target.value)}
-                  className="border p-1 rounded"
+                  onChange={e => setVacationEnd(e.target.value)}
+                  className="p-2 rounded bg-[#121212] border border-transparent focus:border-purple-600 focus:ring-2 focus:ring-purple-600 text-gray-300 transition"
                 />
-              </label>
+              </div>
             </div>
           )}
 
-          <p>
-            <strong>Должность:</strong>{' '}
+          <div>
+            <label className="block mb-1 text-sm font-medium text-gray-300">Должность</label>
             <select
               value={positionId}
-              onChange={(e) => setPositionId(e.target.value)}
-              className="border p-1 rounded ml-2"
+              onChange={e => setPositionId(e.target.value)}
+              className="w-full p-2 rounded bg-[#121212] border border-transparent focus:border-purple-600 focus:ring-2 focus:ring-purple-600 text-gray-300 transition"
+              required
             >
               <option value="">—</option>
-              {positions.map((p) => (
+              {positions.map(p => (
                 <option key={p.id} value={p.id}>
                   {p.title}
                 </option>
               ))}
             </select>
-          </p>
+          </div>
 
-          <p>
-            <strong>Сервер:</strong>{' '}
+          <div>
+            <label className="block mb-1 text-sm font-medium text-gray-300">Сервер</label>
             <select
               value={serverId}
-              onChange={(e) => setServerId(e.target.value)}
-              className="border p-1 rounded ml-2"
+              onChange={e => setServerId(e.target.value)}
+              className="w-full p-2 rounded bg-[#121212] border border-transparent focus:border-purple-600 focus:ring-2 focus:ring-purple-600 text-gray-300 transition"
             >
               <option value="">—</option>
-              {servers.map((s) => (
+              {servers.map(s => (
                 <option key={s.id} value={s.id}>
                   {s.name}
                 </option>
               ))}
             </select>
-          </p>
+          </div>
 
-          <p>
-            <strong>Комментарий:</strong><br />
+          <div>
+            <label className="block mb-1 text-sm font-medium text-gray-300">Комментарий</label>
             <textarea
               value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              className="border p-1 rounded w-full"
+              onChange={e => setComment(e.target.value)}
               rows={3}
               placeholder="Комментарий к игроку"
+              className="w-full p-2 rounded bg-[#121212] border border-transparent focus:border-purple-600 focus:ring-2 focus:ring-purple-600 text-gray-300 transition resize-none"
             />
-          </p>
-        </>
+          </div>
+
+          <div className="flex gap-3 justify-end">
+            <button
+              type="submit"
+              className="bg-purple-600 hover:bg-purple-700 px-5 py-2 rounded font-semibold transition"
+            >
+              Сохранить
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsEditing(false)}
+              className="bg-gray-700 hover:bg-gray-600 px-5 py-2 rounded transition"
+            >
+              Отмена
+            </button>
+          </div>
+        </form>
       ) : (
-        <>
+        <div className="space-y-3 text-gray-300">
           <p><strong>Ник:</strong> {localPlayer.nickname ?? '—'}</p>
           <p><strong>Статус:</strong> {localPlayer.status?.label ?? '—'}</p>
 
@@ -197,40 +220,29 @@ const PlayerDetails = ({ player, onClose, onUpdated }: PlayerDetailsProps) => {
           <p><strong>Должность:</strong> {localPlayer.position?.title ?? '—'}</p>
           <p><strong>Сервер:</strong> {localPlayer.server?.name ?? '—'}</p>
           <p><strong>Комментарий:</strong><br />{localPlayer.comment || '—'}</p>
-        </>
-      )}
 
-      <div className="mt-4 flex gap-2">
-        {isEditing ? (
-          <button
-            onClick={handleSave}
-            className="bg-purple-600 text-white px-4 py-1 rounded hover:bg-purple-700"
-          >
-            Сохранить
-          </button>
-        ) : (
-          <>
+          <div className="flex gap-3 mt-4">
             <button
               onClick={() => setIsEditing(true)}
-              className="bg-purple-600 text-white px-4 py-1 rounded hover:bg-purple-700"
+              className="bg-purple-600 hover:bg-purple-700 px-5 py-2 rounded font-semibold transition"
             >
               Редактировать
             </button>
             <button
               onClick={handleDelete}
-              className="bg-gray-400 text-white px-4 py-1 rounded hover:bg-gray-500"
+              className="bg-gray-600 hover:bg-gray-700 px-5 py-2 rounded transition"
             >
               Удалить
             </button>
-          </>
-        )}
-        <button
-          onClick={onClose}
-          className="bg-gray-500 text-white px-4 py-1 rounded hover:bg-gray-600 ml-auto"
-        >
-          Закрыть
-        </button>
-      </div>
+            <button
+              onClick={onClose}
+              className="ml-auto bg-gray-600 hover:bg-gray-700 px-5 py-2 rounded transition"
+            >
+              Закрыть
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

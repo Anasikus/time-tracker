@@ -56,13 +56,21 @@ const PlayerForm = ({ onCreated }: { onCreated: () => void }) => {
         onChange={(e) => setNickname(e.target.value)}
         placeholder="Никнейм"
         required
-        className="p-2 border rounded"
+        className="p-2 border rounded text-gray-300 bg-black/60 border-2"
+        style={{
+          borderImage: 'linear-gradient(90deg, #5e00bd, #ca46fa) 1',
+          borderImageSlice: 1
+        }}
       />
 
       <select
         value={statusId}
         onChange={(e) => setStatusId(+e.target.value)}
-        className="p-2 border rounded"
+        className="p-2 border rounded text-gray-300 bg-black/60 border-2"
+        style={{
+          borderImage: 'linear-gradient(90deg, #5e00bd, #ca46fa) 1',
+          borderImageSlice: 1
+        }}
         required
       >
         {statuses.map((s) => (
@@ -75,7 +83,11 @@ const PlayerForm = ({ onCreated }: { onCreated: () => void }) => {
       <select
         value={positionId}
         onChange={(e) => setPositionId(+e.target.value)}
-        className="p-2 border rounded"
+        className="p-2 border rounded text-gray-300 bg-black/60 border-2"
+        style={{
+          borderImage: 'linear-gradient(90deg, #5e00bd, #ca46fa) 1',
+          borderImageSlice: 1
+        }}
         required
       >
         {positions.map((p) => (
@@ -88,7 +100,11 @@ const PlayerForm = ({ onCreated }: { onCreated: () => void }) => {
       <select
         value={serverId}
         onChange={(e) => setServerId(+e.target.value)}
-        className="p-2 border rounded"
+        className="p-2 border rounded text-gray-300 bg-black/60 border-2"
+        style={{
+          borderImage: 'linear-gradient(90deg, #5e00bd, #ca46fa) 1',
+          borderImageSlice: 1
+        }}
         required
       >
         {servers.map((s) => (

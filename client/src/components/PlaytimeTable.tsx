@@ -41,7 +41,6 @@ const PlaytimeTable = ({ onClose, onSave, playerId, initialDate, vacationStart, 
 
       let existing: TimeEntry | null = null;
 
-      // Попытка загрузить существующее время
       try {
         const res = await fetch(
           `${import.meta.env.VITE_API_URL}/api/playtime/date?playerId=${playerId}&date=${date}`
@@ -98,8 +97,7 @@ const PlaytimeTable = ({ onClose, onSave, playerId, initialDate, vacationStart, 
     init();
   }, [mode, rangeStart, rangeEnd, initialDate, vacationStart, vacationEnd]);
 
-
-  const updateEntry = (id: number, key: keyof TimeEntry, value: string) => {
+  const updateEntry = (id: number, key: keyof TimeEntry, value: string | boolean) => {
     setEntries(prev =>
       prev.map(entry =>
         entry.id === id ? { ...entry, [key]: value } : entry
@@ -124,7 +122,7 @@ const PlaytimeTable = ({ onClose, onSave, playerId, initialDate, vacationStart, 
     setEntries(prev => prev.filter(entry => entry.id !== id));
   };
 
-  const allValid = entries.every(e => e.date && (e.hours || e.minutes));
+  const allValid = entries.every(e => e.date && (e.hours !== '' || e.minutes !== ''));
 
   const handleSave = async () => {
     for (const entry of entries) {
@@ -149,8 +147,6 @@ const PlaytimeTable = ({ onClose, onSave, playerId, initialDate, vacationStart, 
 
         if (!response.ok) {
           console.error('Ошибка при сохранении:', response.statusText);
-        } else {
-          console.log('Успешно сохранено:', payload);
         }
       } catch (err) {
         console.error('Ошибка запроса:', err);
@@ -162,132 +158,178 @@ const PlaytimeTable = ({ onClose, onSave, playerId, initialDate, vacationStart, 
   };
 
   return (
-    <div className="p-4 bg-white rounded-xl shadow-lg max-w-2xl mx-auto">
-      <h2 className="text-xl font-bold mb-4">Добавление времени</h2>
+    <>
+      {/* Затенённый фон модалки */}
+      <div
+        onClick={onClose}
+        className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm z-40"
+      />
 
-      <div className="mb-4">
-        <label className="mr-4">
-          <input
-            type="radio"
-            value="day"
-            checked={mode === 'day'}
-            onChange={() => setMode('day')}
-          /> День
-        </label>
-        <label>
-          <input
-            type="radio"
-            value="range"
-            checked={mode === 'range'}
-            onChange={() => setMode('range')}
-          /> Период
-        </label>
-      </div>
+      {/* Модальное окно */}
+      <div className="fixed inset-0 flex items-center justify-center p-4 z-50 overflow-auto">
+        <div className="bg-[#1a1a1a] text-white rounded-xl shadow-lg max-w-3xl w-full sm:w-[600px] mx-auto p-6
+          flex flex-col
+          animate-fadeIn
+          border border-transparent hover:border-[#5e00bd] transition
+          ">
+          <h2 className="text-2xl font-bold mb-6 border-b border-[#5e00bd] pb-2">Добавление времени</h2>
 
-      {mode === 'range' && (
-        <div className="flex gap-4 mb-4">
-          <div>
-            <label className="block text-sm">С</label>
-            <input
-              type="date"
-              value={rangeStart}
-              onChange={e => setRangeStart(e.target.value)}
-              className="border p-1 rounded"
-            />
+          {/* Режим выбора */}
+          <div className="mb-6 flex gap-6 text-sm select-none">
+            <label className={`cursor-pointer flex items-center gap-2 ${mode === 'day' ? 'text-purple-400' : 'text-gray-400'}`}>
+              <input
+                type="radio"
+                value="day"
+                checked={mode === 'day'}
+                onChange={() => setMode('day')}
+                className="accent-purple-600"
+              />
+              День
+            </label>
+            <label className={`cursor-pointer flex items-center gap-2 ${mode === 'range' ? 'text-purple-400' : 'text-gray-400'}`}>
+              <input
+                type="radio"
+                value="range"
+                checked={mode === 'range'}
+                onChange={() => setMode('range')}
+                className="accent-purple-600"
+              />
+              Период
+            </label>
           </div>
-          <div>
-            <label className="block text-sm">По</label>
-            <input
-              type="date"
-              value={rangeEnd}
-              onChange={e => setRangeEnd(e.target.value)}
-              className="border p-1 rounded"
-            />
-          </div>
-        </div>
-      )}
 
-      {entries.map(entry => (
-        <div
-          key={entry.id}
-          className={`flex items-center gap-4 mb-2 relative border p-2 rounded ${entry.isVacation ? 'bg-yellow-100' : ''}`}
-        >
+          {/* Период выбора дат */}
+          {mode === 'range' && (
+            <div className="flex flex-col sm:flex-row gap-4 mb-6">
+              <div className="flex flex-col w-full sm:w-1/2">
+                <label className="mb-1 text-sm text-gray-400">С</label>
+                <input
+                  type="date"
+                  value={rangeStart}
+                  onChange={e => setRangeStart(e.target.value)}
+                  className="p-2 rounded bg-[#121212] border border-[#5e00bd] text-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                />
+              </div>
+              <div className="flex flex-col w-full sm:w-1/2">
+                <label className="mb-1 text-sm text-gray-400">По</label>
+                <input
+                  type="date"
+                  value={rangeEnd}
+                  onChange={e => setRangeEnd(e.target.value)}
+                  className="p-2 rounded bg-[#121212] border border-[#5e00bd] text-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Записи времени */}
+          <div className="flex flex-col gap-3 max-h-[300px] overflow-y-auto mb-6">
+            {entries.map(entry => (
+              <div
+                key={entry.id}
+                className={`flex flex-col sm:flex-row items-center gap-3 relative p-3 rounded-md
+                  ${entry.isVacation ? 'bg-yellow-400/20' : 'bg-[#222222] hover:bg-[#2e2e2e]'}
+                `}
+              >
+                <button
+                  onClick={() => removeEntry(entry.id)}
+                  className="absolute top-1 right-1 text-white bg-red-600 hover:bg-red-700 rounded-full w-6 h-6 flex items-center justify-center text-lg leading-none"
+                  title="Удалить"
+                  type="button"
+                >
+                  &times;
+                </button>
+
+                {/* Дата */}
+                <div className="flex flex-col flex-1 min-w-[130px]">
+                  <label className="text-xs text-gray-400 mb-1 select-none">Дата</label>
+                  <input
+                    type="date"
+                    value={entry.date}
+                    onChange={e => {
+                      const date = e.target.value;
+                      const vacation = isDateInVacation(date, vacationStart, vacationEnd);
+                      updateEntry(entry.id, 'date', date);
+                      updateEntry(entry.id, 'isVacation', vacation);
+                      if (vacation) {
+                        updateEntry(entry.id, 'hours', '0');
+                        updateEntry(entry.id, 'minutes', '0');
+                      }
+                    }}
+                    className="rounded border border-[#5e00bd] bg-[#121212] p-2 text-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                  />
+                </div>
+
+                {/* Часы */}
+                <div className="flex flex-col w-[80px]">
+                  <label className="text-xs text-gray-400 mb-1 select-none">Часы</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={24}
+                    value={entry.hours}
+                    onChange={e => updateEntry(entry.id, 'hours', e.target.value)}
+                    className="rounded border border-[#5e00bd] bg-[#121212] p-2 text-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-600 text-center"
+                    placeholder="0–24"
+                  />
+                </div>
+
+                {/* Минуты */}
+                <div className="flex flex-col w-[80px]">
+                  <label className="text-xs text-gray-400 mb-1 select-none">Минуты</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={59}
+                    value={entry.minutes}
+                    onChange={e => updateEntry(entry.id, 'minutes', e.target.value)}
+                    className="rounded border border-[#5e00bd] bg-[#121212] p-2 text-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-600 text-center"
+                    placeholder="0–59"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+
           <button
-            onClick={() => removeEntry(entry.id)}
-            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center"
-            title="Удалить"
+            onClick={addEntry}
+            className="self-start mb-6 px-4 py-2 bg-purple-700 hover:bg-purple-800 rounded transition"
+            type="button"
           >
-            ×
+            Добавить запись
           </button>
-          <div className="flex-1">
-            <label className="block text-xs text-gray-500">Дата</label>
-            <input
-              type="date"
-              value={entry.date}
-              onChange={e => {
-                const date = e.target.value;
-                const vacation = isDateInVacation(date, vacationStart, vacationEnd);
-                updateEntry(entry.id, 'date', date);
-                updateEntry(entry.id, 'isVacation', vacation.toString());
-                if (vacation) {
-                  updateEntry(entry.id, 'hours', '0');
-                  updateEntry(entry.id, 'minutes', '0');
-                }
-              }}
-              className="border p-1 rounded w-full"
-            />
-          </div>
-          <div className="w-24">
-            <label className="block text-xs text-gray-500">Часы</label>
-            <input
-              type="number"
-              min="0"
-              value={entry.hours}
-              onChange={e => updateEntry(entry.id, 'hours', e.target.value)}
-              className="border p-1 rounded w-full"
-              placeholder="0–24"
-            />
-          </div>
-          <div className="w-24">
-            <label className="block text-xs text-gray-500">Минуты</label>
-            <input
-              type="number"
-              min="0"
-              max="59"
-              value={entry.minutes}
-              onChange={e => updateEntry(entry.id, 'minutes', e.target.value)}
-              className="border p-1 rounded w-full"
-              placeholder="0–59"
-            />
+
+          <div className="flex justify-end gap-4">
+            <button
+              onClick={onClose}
+              className="px-5 py-2 border border-gray-600 rounded hover:bg-gray-700 transition"
+              type="button"
+            >
+              Отмена
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={!allValid}
+              className={`px-5 py-2 rounded text-white transition
+                ${allValid ? 'bg-purple-600 hover:bg-purple-700' : 'bg-purple-900 cursor-not-allowed opacity-50'}`}
+              type="button"
+            >
+              Сохранить
+            </button>
           </div>
         </div>
-      ))}
-
-      <button
-        onClick={addEntry}
-        className="mt-4 px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700"
-      >
-        Добавить запись
-      </button>
-
-      <div className="flex justify-between pt-4">
-        <button
-          onClick={onClose}
-          className="px-4 py-1 border border-gray-400 rounded hover:bg-gray-100"
-        >
-          Отмена
-        </button>
-        <button
-          onClick={handleSave}
-          disabled={!allValid}
-          className={`px-4 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 ${
-            !allValid ? 'opacity-50 cursor-not-allowed' : ''
-          }`}
-        >
-          Сохранить
-        </button>
       </div>
-    </div>
+
+      <style>{`
+        @keyframes fadeIn {
+          from {opacity: 0; transform: translateY(10px);}
+          to {opacity: 1; transform: translateY(0);}
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.25s ease forwards;
+        }
+      `}</style>
+    </>
   );
 };
 
