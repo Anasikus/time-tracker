@@ -64,16 +64,17 @@ model Server {
 }
 
 model ModerationStats {
-  id            Int      @id @default(autoincrement())
+  id            Int    @id @default(autoincrement())
   playerId      Int
-  month         DateTime // указывает месяц (например, 2025-07-01)
   complaints    Int
   appeals       Int
   modComplaints Int
   trainees      Int
   moderators    Int
+  year          Int
+  month         Int
 
-  player        Player   @relation(fields: [playerId], references: [id])
+  player        Player @relation(fields: [playerId], references: [id])
 
-  @@unique([playerId, month])
+  @@unique([playerId, year, month])
 }

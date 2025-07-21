@@ -83,11 +83,13 @@ export const updatePlayer = async (req, res) => {
 export const deletePlayer = async (req, res) => {
   try {
     const { id } = req.params;
-
+    const playerId = Number(req.params.id);
     await prisma.timeLog.deleteMany({
       where: { playerId: Number(id) },
     });
-
+    await prisma.moderationStats.deleteMany({
+      where: { playerId },
+    });
     await prisma.player.delete({
       where: { id: Number(id) },
     });

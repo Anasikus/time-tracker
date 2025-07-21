@@ -6,10 +6,15 @@ export const getModerationStats = async (req, res) => {
   const { month } = req.query;
 
   try {
-    const dateObj = new Date(month); // Пример: "2025-07-01"
+    const dateObj = new Date(month); // например, "2025-07-01"
+    const year = dateObj.getFullYear();
+    const monthNum = dateObj.getMonth() + 1; // JS: Январь = 0, Декабрь = 11
 
     const stats = await prisma.moderationStats.findMany({
-      where: { month: dateObj },
+      where: {
+        year,
+        month: monthNum,
+      },
       include: {
         player: {
           select: {
@@ -37,6 +42,7 @@ export const getModerationStats = async (req, res) => {
   }
 };
 
+
 // Создать или обновить статистику
 export const saveModerationStat = async (req, res) => {
   const {
@@ -50,13 +56,16 @@ export const saveModerationStat = async (req, res) => {
   } = req.body;
 
   try {
-    const dateObj = new Date(month); // month приходит как строка YYYY-MM-01
+    const dateObj = new Date(month); // приходит YYYY-MM-01
+    const year = dateObj.getFullYear();
+    const monthNum = dateObj.getMonth() + 1;
 
     const updated = await prisma.moderationStats.upsert({
       where: {
-        playerId_month: {
+        playerId_year_month: { // изменишь имя композитного индекса ниже
           playerId,
-          month: dateObj,
+          year,
+          month: monthNum,
         },
       },
       update: {
@@ -68,7 +77,8 @@ export const saveModerationStat = async (req, res) => {
       },
       create: {
         playerId,
-        month: dateObj,
+        year,
+        month: monthNum,
         complaints,
         appeals,
         modComplaints,
@@ -76,6 +86,7 @@ export const saveModerationStat = async (req, res) => {
         moderators,
       },
     });
+
 
     res.json({ success: true, data: updated });
   } catch (error) {
