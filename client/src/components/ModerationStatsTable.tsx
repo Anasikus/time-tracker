@@ -15,15 +15,39 @@ export default function ModerationStatsTable() {
   const [stats, setStats] = useState<ModerationStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<number | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10); // YYYY-MM-01
+  });
 
   useEffect(() => {
     fetchStats();
-  }, []);
+  }, [selectedMonth]);
 
   const fetchStats = async () => {
     try {
-      const res = await axios.get('/api/moderation');
-      setStats(res.data);
+      const [modRes, playersRes] = await Promise.all([
+        axios.get('/api/moderation', { params: { month: selectedMonth } }),
+        axios.get('/api/moderation/players-basic'),
+      ]);
+
+      const moderationData = modRes.data as ModerationStat[];
+      const allPlayers = playersRes.data as { id: number; nickname: string }[];
+
+      const mergedStats: ModerationStat[] = allPlayers.map(player => {
+        const existing = moderationData.find(m => m.playerId === player.id);
+        return existing ?? {
+          playerId: player.id,
+          nickname: player.nickname,
+          complaints: 0,
+          appeals: 0,
+          modComplaints: 0,
+          trainees: 0,
+          moderators: 0,
+        };
+      });
+
+      setStats(mergedStats);
     } catch (err) {
       console.error('Ошибка загрузки статистики:', err);
     } finally {
@@ -42,7 +66,7 @@ export default function ModerationStatsTable() {
   const handleSave = async (stat: ModerationStat) => {
     try {
       setSavingId(stat.playerId);
-      await axios.post('/api/moderation', stat);
+      await axios.post('/api/moderation', { ...stat, month: selectedMonth });
     } catch (err) {
       console.error('Ошибка сохранения:', err);
     } finally {
