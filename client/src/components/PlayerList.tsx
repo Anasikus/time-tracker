@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { getPlaytimeByWeek } from '../services/api';
 import type { Player } from '../types';
 import dayjs from 'dayjs';
@@ -47,23 +47,25 @@ const PlayerListWithPlaytime = () => {
   const [mode, setMode] = useState<'playtime' | 'moderation'>('playtime');
 
   // Диапазон дат
-  let startDate: dayjs.Dayjs;
-  let endDate: dayjs.Dayjs;
+  const { startDate, endDate } = useMemo(() => {
+    let start: dayjs.Dayjs;
+    let end: dayjs.Dayjs;
 
-  if (viewMode === 'week') {
-    startDate = dayjs()
-      .year(year)
-      .month(month)
-      .startOf('month')
-      .startOf('isoWeek')
-      .add(weekIndex * 7, 'day');
-    endDate = startDate.add(6, 'day');
-  } else {
-    startDate = dayjs().year(year).month(month).startOf('month');
-    endDate = dayjs().year(year).month(month).endOf('month');
-  }
+    if (viewMode === 'week') {
+      start = dayjs()
+        .year(year)
+        .month(month)
+        .startOf('month')
+        .startOf('isoWeek')
+        .add(weekIndex * 7, 'day');
+      end = start.add(6, 'day');
+    } else {
+      start = dayjs().year(year).month(month).startOf('month');
+      end = dayjs().year(year).month(month).endOf('month');
+    }
 
-  const daysInMonth = endDate.date();
+    return { startDate: start, endDate: end };
+  }, [year, month, weekIndex, viewMode]);
 
   const [days, setDays] = useState<dayjs.Dayjs[]>([]);
   const [monthWeeks, setMonthWeeks] = useState<{ start: dayjs.Dayjs; end: dayjs.Dayjs }[]>([]);
@@ -92,7 +94,8 @@ const PlayerListWithPlaytime = () => {
         setDays(Array.from({ length: 7 }).map((_, i) => startDate.add(i, 'day')));
         setMonthWeeks([]);
       } else if (viewMode === 'monthDays') {
-        setDays(Array.from({ length: daysInMonth }).map((_, i) => startDate.add(i, 'day')));
+        const daysCount = endDate.date();
+        setDays(Array.from({ length: daysCount }).map((_, i) => startDate.add(i, 'day')));
         setMonthWeeks([]);
       } else if (viewMode === 'monthWeeks') {
         const weeks = [];
@@ -111,11 +114,17 @@ const PlayerListWithPlaytime = () => {
     } catch (err) {
       console.error('Ошибка при загрузке:', err);
     }
-  }, [startDate, endDate, viewMode, daysInMonth]);
+  }, [startDate, endDate, viewMode]);
+
 
   useEffect(() => {
-    fetchData();
+    const timeout = setTimeout(() => {
+      fetchData();
+    }, 300); // 300мс задержка
+
+    return () => clearTimeout(timeout); // очистка на размонтирование или изменение зависимостей
   }, [fetchData]);
+
 
   // Фильтрация игроков
   const filteredPlayers = data
