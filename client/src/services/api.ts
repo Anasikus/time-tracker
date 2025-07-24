@@ -27,6 +27,7 @@ export const getServers = async () => {
 
 export const createPlayer = async (data: {
   nickname: string;
+  uuid?: string;
   statusId: number;
   positionId: number;
   serverId: number;

@@ -1,5 +1,9 @@
 import prisma from '../db/client.js';
 import dayjs from 'dayjs';
+import axios from 'axios';
+
+const jwt_token = process.env.METALABS_JWT_TOKEN;
+const url = "https://panel.metalabs.work/api/v1/rest/proxy?rest=meta&method=v3%2Fplaytime%2Fgribland%2Fhitech%2Flist";
 
 export const addPlaytime = async (req, res) => {
   try {
@@ -108,3 +112,100 @@ export const getPlaytimeByDate = async (req, res) => {
     res.status(500).json({ error: 'Ошибка при получении записи' });
   }
 };
+
+function getDateList(min, max) {
+  const start = new Date(min);
+  const end = new Date(max);
+  const dates = [];
+
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    // Клонируем дату, иначе mutates
+    dates.push(new Date(d).toISOString().slice(0, 10));
+  }
+
+  return dates;
+}
+
+export const syncPlaytimeFromPanel = async (req, res) => {
+  const { start, end, preview } = req.query;
+
+  if (!start || !end) {
+    return res.status(400).json({ error: 'Missing start or end date' });
+  }
+
+  try {
+    const playersWithUuid = await prisma.player.findMany({
+      where: { uuid: { not: null } },
+    });
+
+    const uuidToPlayerMap = Object.fromEntries(
+      playersWithUuid.map(p => [p.uuid, p])
+    );
+
+    const payload = {
+      min: start,
+      max: end,
+      uuids: playersWithUuid.map(p => p.uuid),
+    };
+
+    const headers = {
+      accept: 'application/json',
+      'content-type': 'application/json',
+      referer: 'https://panel.metalabs.work/gribland/hitech/online',
+      cookie: `metapanel_accessToken=${process.env.METALABS_JWT_TOKEN}`,
+    };
+
+    const response = await axios.post(url, payload, { headers });
+    const data = response.data.body;
+    const dateList = getDateList(start, end);
+
+    const previewData = [];
+
+    for (const [uuid, logs] of Object.entries(data)) {
+      const player = uuidToPlayerMap[uuid];
+      if (!player) continue;
+
+      for (const date of dateList) {
+        const seconds = logs.onlinePoints?.[date] ?? 0;
+        const minutes = Math.round(seconds / 60);
+        previewData.push({
+          playerId: player.id,
+          nickname: player.nickname,
+          uuid: player.uuid,
+          date,
+          duration: minutes,
+        });
+      }
+    }
+
+    if (preview === 'true') {
+      return res.status(200).json({ preview: previewData });
+    }
+
+    // Сохраняем в БД, если не preview
+    const upserts = previewData.map(entry =>
+      prisma.timeLog.upsert({
+        where: {
+          playerId_date: {
+            playerId: entry.playerId,
+            date: new Date(entry.date),
+          },
+        },
+        update: { duration: entry.duration },
+        create: {
+          playerId: entry.playerId,
+          date: new Date(entry.date),
+          duration: entry.duration,
+        },
+      })
+    );
+
+    await prisma.$transaction(upserts);
+    res.status(200).json({ message: 'Данные синхронизированы', count: upserts.length });
+
+  } catch (err) {
+    console.error('[syncPlaytimeFromPanel] Ошибка:', err);
+    res.status(500).json({ error: 'Ошибка при синхронизации данных' });
+  }
+};
+

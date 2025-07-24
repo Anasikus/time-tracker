@@ -21,7 +21,7 @@ export const getAllPlayers = async (req, res) => {
 
 export const createPlayer = async (req, res) => {
   try {
-    const { nickname, statusId, positionId, serverId } = req.body;
+    const { nickname, uuid, statusId, positionId, serverId } = req.body;
 
     if (!nickname || !statusId || !positionId) {
       return res.status(400).json({ error: "nickname, statusId, and positionId are required." });
@@ -30,6 +30,7 @@ export const createPlayer = async (req, res) => {
     const newPlayer = await prisma.player.create({
       data: {
         nickname,
+        uuid: uuid?.trim() || null,
         statusId,
         positionId,
         serverId: serverId || null,

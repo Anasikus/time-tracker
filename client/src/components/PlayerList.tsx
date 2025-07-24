@@ -47,22 +47,24 @@ const PlayerListWithPlaytime = () => {
   const [mode, setMode] = useState<'playtime' | 'moderation'>('playtime');
 
   // Диапазон дат
-  const { startDate, endDate } = useMemo(() => {
-    let start: dayjs.Dayjs;
-    let end: dayjs.Dayjs;
+const { startDate, endDate } = useMemo(() => {
+  let start: dayjs.Dayjs;
+  let end: dayjs.Dayjs;
 
-    if (viewMode === 'week') {
-      start = dayjs()
-        .year(year)
-        .month(month)
-        .startOf('month')
-        .startOf('isoWeek')
-        .add(weekIndex * 7, 'day');
-      end = start.add(6, 'day');
-    } else {
-      start = dayjs().year(year).month(month).startOf('month');
-      end = dayjs().year(year).month(month).endOf('month');
-    }
+  if (viewMode === 'week') {
+    start = dayjs()
+      .year(year)
+      .month(month)
+      .startOf('month')
+      .add(weekIndex * 7, 'day');
+    end = dayjs.min(start.add(6, 'day'), dayjs().year(year).month(month).endOf('month'));
+  } else if (viewMode === 'monthWeeks' || viewMode === 'monthDays') {
+    start = dayjs().year(year).month(month).startOf('month');
+    end = dayjs().year(year).month(month).endOf('month');
+  } else {
+    start = dayjs().startOf('month');
+    end = dayjs().endOf('month');
+  }
 
     return { startDate: start, endDate: end };
   }, [year, month, weekIndex, viewMode]);
@@ -100,18 +102,18 @@ const PlayerListWithPlaytime = () => {
       } else if (viewMode === 'monthWeeks') {
         const weeks: { start: dayjs.Dayjs; end: dayjs.Dayjs }[] = [];
 
-        let current = startDate.startOf('isoWeek');
+        let current = startDate;
         const lastDay = endDate;
 
-        while (current.isBefore(lastDay)) {
+        while (current.isBefore(lastDay) || current.isSame(lastDay, 'day')) {
           const weekStart = current;
-          const weekEnd = current.add(6, 'day');
+          const weekEnd = current.add(8 - current.day(), 'day'); // до воскресенья
 
-          const clippedStart = weekStart.isBefore(startDate) ? startDate : weekStart;
           const clippedEnd = weekEnd.isAfter(endDate) ? endDate : weekEnd;
 
-          weeks.push({ start: clippedStart, end: clippedEnd });
-          current = current.add(1, 'week');
+          weeks.push({ start: weekStart, end: clippedEnd });
+
+          current = weekEnd.add(1, 'day');
         }
 
         setMonthWeeks(weeks);

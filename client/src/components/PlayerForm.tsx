@@ -11,6 +11,8 @@ const PlayerForm = ({ onCreated }: { onCreated: () => void }) => {
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
   const [servers, setServers] = useState<Server[]>([]);
+  const [uuid, setUuid] = useState('');
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -41,7 +43,7 @@ const PlayerForm = ({ onCreated }: { onCreated: () => void }) => {
     if (!nickname || !statusId || !positionId || !serverId) return;
 
     try {
-      await createPlayer({ nickname, statusId, positionId, serverId });
+      await createPlayer({ nickname, uuid, statusId, positionId, serverId });
       setNickname('');
       onCreated();
     } catch (error) {
@@ -60,6 +62,17 @@ const PlayerForm = ({ onCreated }: { onCreated: () => void }) => {
         style={{
           borderImage: 'linear-gradient(90deg, #5e00bd, #ca46fa) 1',
           borderImageSlice: 1
+        }}
+      />
+
+      <input
+        value={uuid}
+        onChange={(e) => setUuid(e.target.value)}
+        placeholder="UUID (если есть)"
+        className="p-2 border rounded text-gray-300 bg-black/60 border-2"
+        style={{
+          borderImage: 'linear-gradient(90deg, #5e00bd, #ca46fa) 1',
+          borderImageSlice: 1,
         }}
       />
 
