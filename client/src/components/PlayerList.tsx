@@ -98,17 +98,24 @@ const PlayerListWithPlaytime = () => {
         setDays(Array.from({ length: daysCount }).map((_, i) => startDate.add(i, 'day')));
         setMonthWeeks([]);
       } else if (viewMode === 'monthWeeks') {
-        const weeks = [];
+        const weeks: { start: dayjs.Dayjs; end: dayjs.Dayjs }[] = [];
+
         let current = startDate.startOf('isoWeek');
-        const monthEnd = endDate.endOf('day');
-        while (current.isBefore(monthEnd)) {
-          weeks.push({
-            start: current,
-            end: current.add(6, 'day'),
-          });
+        const lastDay = endDate;
+
+        while (current.isBefore(lastDay)) {
+          const weekStart = current;
+          const weekEnd = current.add(6, 'day');
+
+          const clippedStart = weekStart.isBefore(startDate) ? startDate : weekStart;
+          const clippedEnd = weekEnd.isAfter(endDate) ? endDate : weekEnd;
+
+          weeks.push({ start: clippedStart, end: clippedEnd });
           current = current.add(1, 'week');
         }
+
         setMonthWeeks(weeks);
+
         setDays([]);
       }
     } catch (err) {

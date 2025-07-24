@@ -1,5 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import dayjs from 'dayjs';
+import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
+import minMax from 'dayjs/plugin/minMax'; // ⬅️ вот это
+
+dayjs.extend(isSameOrBefore);
+dayjs.extend(minMax); // ⬅️ и это
+
 
 type TimeEntry = {
   id: number;
@@ -63,7 +69,7 @@ const PlaytimeTable = ({ onClose, onSave, playerId, initialDate, vacationStart, 
       } catch (e) {
         console.error('Ошибка загрузки времени:', e);
       }
-
+      
       return (
         existing || {
           id: nextId.current++,
@@ -75,24 +81,66 @@ const PlaytimeTable = ({ onClose, onSave, playerId, initialDate, vacationStart, 
       );
     };
 
-    const init = async () => {
-      if (mode === 'range' && rangeStart && rangeEnd) {
-        const start = dayjs(rangeStart);
-        const end = dayjs(rangeEnd);
-        if (!start.isValid() || !end.isValid() || end.isBefore(start)) return;
+// Внутри useEffect в компоненте PlaytimeTable:
 
-        const diff = end.diff(start, 'day') + 1;
-        const newEntries: TimeEntry[] = await Promise.all(
-          Array.from({ length: diff }).map((_, i) =>
-            generateEntry(start.add(i, 'day').format('YYYY-MM-DD'))
-          )
-        );
-        setEntries(newEntries);
-      } else if (mode === 'day' && initialDate) {
-        const entry = await generateEntry(initialDate);
-        setEntries([entry]);
-      }
-    };
+const splitMonthToWeeksByMonthBoundaries = (initialDate: string): string[][] => {
+  const start = dayjs(initialDate).startOf('month');
+  const end = dayjs(initialDate).endOf('month');
+
+  const weeks: string[][] = [];
+  let currentDate = start;
+
+  while (currentDate.isSameOrBefore(end)) {
+    const weekStart = currentDate;
+    const weekEnd = dayjs.min(
+      weekStart.endOf('week'), // ближайшее воскресенье
+      end // но не позже конца месяца
+    );
+
+    const currentWeek: string[] = [];
+    let day = weekStart;
+
+    while (day.isSameOrBefore(weekEnd)) {
+      currentWeek.push(day.format('YYYY-MM-DD'));
+      day = day.add(1, 'day');
+    }
+
+    weeks.push(currentWeek);
+    currentDate = weekEnd.add(1, 'day');
+  }
+
+  return weeks;
+};
+
+
+ 
+  const init = async () => {
+    if (!initialDate) return;
+
+    if (mode === 'range' && rangeStart && rangeEnd) {
+      const start = dayjs(rangeStart);
+      const end = dayjs(rangeEnd);
+
+      if (!start.isValid() || !end.isValid() || end.isBefore(start)) return;
+
+      // Ограничиваем диапазон дат текущим месяцем
+      const weeks = splitMonthToWeeksByMonthBoundaries(initialDate);
+
+      // Преобразуем всё в плоский список дней
+      const days = weeks.flat();
+
+      const newEntries: TimeEntry[] = await Promise.all(
+        days.map((date: string) => generateEntry(date))
+      );
+
+
+
+      setEntries(newEntries);
+    } else if (mode === 'day') {
+      const entry = await generateEntry(initialDate);
+      setEntries([entry]);
+    }
+  };
 
     init();
   }, [mode, rangeStart, rangeEnd, initialDate, vacationStart, vacationEnd]);

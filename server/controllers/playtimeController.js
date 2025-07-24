@@ -1,4 +1,5 @@
 import prisma from '../db/client.js';
+import dayjs from 'dayjs';
 
 export const addPlaytime = async (req, res) => {
   try {
@@ -33,6 +34,13 @@ export const getPlaytimeByWeek = async (req, res) => {
   try {
     const { start, end } = req.query;
 
+    if (!start || !end) {
+      return res.status(400).json({ error: 'Missing start or end date' });
+    }
+
+    const startDate = new Date(dayjs(start).startOf('day').toISOString());
+    const endDate = new Date(dayjs(end).endOf('day').toISOString());
+
     const [players, timeLogs] = await Promise.all([
       prisma.player.findMany({
         include: {
@@ -44,8 +52,8 @@ export const getPlaytimeByWeek = async (req, res) => {
       prisma.timeLog.findMany({
         where: {
           date: {
-            gte: new Date(start),
-            lte: new Date(end),
+            gte: startDate,
+            lte: endDate,
           },
         },
       }),
