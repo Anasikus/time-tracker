@@ -156,7 +156,17 @@ const { startDate, endDate } = useMemo(() => {
     });
   });
 
-  const getSquareColor = (date: dayjs.Dayjs, player: PlayerWithTimeLog): string => {
+  const getWeekDuration = (weekDates: string[], timeLog: Record<string, number>): number => {
+    return weekDates.reduce((sum, date) => sum + (timeLog[date] ?? 0), 0);
+  };
+
+
+  const getSquareColor = (
+    date: dayjs.Dayjs,
+    player: PlayerWithTimeLog,
+    viewMode: 'week' | 'monthDays' | 'monthWeeks',
+    weekDates: string[] | null = null
+  ): string => {
     const start = player.vacationStart ? dayjs(player.vacationStart) : null;
     const end = player.vacationEnd ? dayjs(player.vacationEnd) : null;
 
@@ -164,19 +174,44 @@ const { startDate, endDate } = useMemo(() => {
       start &&
       (end ? date.isBetween(start, end, 'day', '[]') : date.isSame(start) || date.isAfter(start));
 
-    const duration = player.timeLog[date.format('YYYY-MM-DD')] ?? 0;
+    const dateStr = date.format('YYYY-MM-DD');
 
-    if (inVacation) {
-      if (duration > 0) return '#f97316';
-      return '#fde68a';
+    // 👇 Здесь будет суммарная продолжительность недели
+    const durationMinutes =
+      viewMode === 'monthWeeks' && weekDates
+        ? getWeekDuration(weekDates, player.timeLog) / 60
+        : (player.timeLog[dateStr] ?? 0) / 60;
+
+    // 👇 Debug
+    console.log('date:', dateStr);
+    console.log('role:', player.position?.title);
+    console.log('duration (hours):', durationMinutes);
+
+    if (viewMode === 'monthWeeks') {
+      const role = player.position?.title?.toLowerCase();
+
+      if (role?.includes('старший модератор')) {
+        if (durationMinutes > 14) return '#722ed1'; // > 14 ч
+        if (durationMinutes >= 7) return '#52c41a'; // 7–14 ч
+        return '#ff4d4f'; // < 7 ч
+      } else if (role?.includes('модератор')) {
+        if (durationMinutes > 28) return '#722ed1'; // > 28 ч
+        if (durationMinutes >= 14) return '#52c41a'; // 14–28 ч
+        return '#ff4d4f'; // < 14 ч
+      }
     }
 
-    if (duration > 120) return '#3b82f6';
-    if (duration > 60) return '#22c55e';
-    if (duration > 0) return '#ef4444';
-    return '#6b7280';
-  };
+    if (inVacation) {
+      return durationMinutes > 0 ? '#f97316' : '#fde68a'; // отпуск
+    }
 
+    if (durationMinutes > 2) return '#3b82f6'; // > 2 ч
+    if (durationMinutes > 1) return '#22c55e';  // 1–2 ч
+    if (durationMinutes > 0) return '#ef4444';   // < 1 ч
+
+    return '#6b7280'; // нет активности
+  };
+ 
   const monthOptions = Array.from({
     length: year === today.year() ? today.month() + 1 : 12,
   }).map((_, i) => i);
@@ -454,26 +489,24 @@ const { startDate, endDate } = useMemo(() => {
                       </td>
 
                       {viewMode === 'monthWeeks'
-                        ? weekDurations.map((dur, i) => {
-                            const color =
-                              dur > 120
-                                ? '#3b82f6'
-                                : dur > 60
-                                ? '#22c55e'
-                                : dur > 0
-                                ? '#ef4444'
-                                : '#6b7280';
+                        ? monthWeeks.map((week, i) => {
+                            const weekDates = Array.from({ length: 7 }).map((_, d) =>
+                              week.start.add(d, 'day').format('YYYY-MM-DD')
+                            );
+                            const weekDateObj = week.start;
+                            const color = getSquareColor(weekDateObj, player, viewMode, weekDates);
+                            const dur = weekDurations[i];
 
                             return (
                               <td
                                 key={i}
                                 title={`${Math.floor(dur / 60)} ч ${dur % 60} мин`}
-                                className="px-3 py-1"
                                 onClick={() => {
                                   setSelectedPlayer(player);
-                                  setSelectedDate(monthWeeks[i].start.format('YYYY-MM-DD'));
+                                  setSelectedDate(week.start.format('YYYY-MM-DD'));
                                   setShowPlaytimeTable(true);
                                 }}
+                                className="px-3 py-1"
                               >
                                 <div
                                   style={{
@@ -492,7 +525,9 @@ const { startDate, endDate } = useMemo(() => {
                         : days.map(d => {
                             const dateStr = d.format('YYYY-MM-DD');
                             const min = player.timeLog[dateStr] ?? 0;
-                            const color = getSquareColor(d, player);
+                            const weekDates =
+                              viewMode === 'week' ? days.map(day => day.format('YYYY-MM-DD')) : null;
+                            const color = getSquareColor(d, player, viewMode, weekDates);
 
                             return (
                               <td
@@ -527,6 +562,7 @@ const { startDate, endDate } = useMemo(() => {
                   );
                 })}
               </tbody>
+
             </table>
           </div>
         </>
