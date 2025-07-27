@@ -133,6 +133,14 @@ export const syncPlaytimeFromPanel = async (req, res) => {
     return res.status(400).json({ error: 'Missing start or end date' });
   }
 
+  // Вытаскиваем токен из заголовка Authorization
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+  if (!token) {
+    return res.status(401).json({ error: 'Нет токена авторизации' });
+  }
+
   try {
     const playersWithUuid = await prisma.player.findMany({
       where: { uuid: { not: null } },
@@ -152,7 +160,7 @@ export const syncPlaytimeFromPanel = async (req, res) => {
       accept: 'application/json',
       'content-type': 'application/json',
       referer: 'https://panel.metalabs.work/gribland/hitech/online',
-      cookie: `metapanel_accessToken=${process.env.METALABS_JWT_TOKEN}`,
+      cookie: `metapanel_accessToken=${token}`, // вставляем токен сюда
     };
 
     const response = await axios.post(url, payload, { headers });
